@@ -9,8 +9,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
 
+# Installation directory of certtool (bin/, tools/ with the SAP CLI, the example configuration).
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_CONFIG = PROJECT_ROOT / "config" / "certtool.json"
+# The configuration is project specific: certtool.json in the current directory by default.
+CONFIG_FILE_NAME = "certtool.json"
+EXAMPLE_CONFIG = PROJECT_ROOT / "certtool.example.json"
+DEFAULT_CERTIFICATES_PATH = "./certificates"
 
 DEFAULT_CERT_FILE = "certificate.pem"
 DEFAULT_KEY_FILE = "private-key.pem"
@@ -104,25 +108,32 @@ def _credentials(raw, where: str, errors: List[str]) -> Dict[str, str]:
     return {k: str(v).strip() for k, v in raw.items() if k in CREDENTIAL_FIELDS and v is not None and str(v).strip()}
 
 
+def display_path(text: str) -> str:
+    """Shorten absolute paths below the current directory in messages."""
+    return str(text).replace(str(Path.cwd()) + os.sep, "")
+
+
 def _resolve(base: Path, value: str) -> Path:
     path = Path(os.path.expanduser(value))
     return path if path.is_absolute() else (base / path)
 
 
 def load_config(path: Optional[str] = None) -> Config:
-    config_path = Path(path).resolve() if path else DEFAULT_CONFIG
+    config_path = Path(path).expanduser().resolve() if path else Path.cwd() / CONFIG_FILE_NAME
     if not config_path.is_file():
         raise ConfigError(
             f"Configuration file not found: {config_path}\n"
-            f"Create it based on config/certtool.example.json."
+            f"Run certtool in the project directory that contains {CONFIG_FILE_NAME}, or pass --config <file>.\n"
+            f"A template is available at {EXAMPLE_CONFIG}."
         )
     try:
         raw = json.loads(config_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise ConfigError(f"Invalid JSON in {config_path}: {exc}") from exc
 
-    # Relative paths in the config are resolved against the project root.
-    base = PROJECT_ROOT
+    # Project data (certificates) is resolved relative to the configuration file, the SAP CLI
+    # relative to the certtool installation.
+    base = config_path.parent
 
     subscription = str(raw.get("subscriptionCode") or "").strip()
     if not subscription or subscription.startswith("<"):
@@ -130,7 +141,9 @@ def load_config(path: Optional[str] = None) -> Config:
             "'subscriptionCode' is missing in the configuration."
         )
 
-    certs_dir = _resolve(base, raw.get("certificatesDir", "certificates"))
+    if "certificatesDir" in raw:
+        raise ConfigError("'certificatesDir' was renamed to 'certificatesPath' (relative to the configuration file).")
+    certs_dir = _resolve(base, raw.get("certificatesPath", DEFAULT_CERTIFICATES_PATH))
     certificates: Dict[str, CertificateConfig] = {}
     for name, spec in (raw.get("certificates") or {}).items():
         spec = spec or {}
@@ -186,8 +199,8 @@ def load_config(path: Optional[str] = None) -> Config:
     return Config(
         path=config_path,
         subscription_code=subscription,
-        sapccm_home=_resolve(base, raw.get("sapccmHome", "tools/sapccm")),
-        sapccm_zip_dir=_resolve(base, raw.get("sapccmZipDir", "tools")),
+        sapccm_home=_resolve(PROJECT_ROOT, raw.get("sapccmHome", "tools/sapccm")),
+        sapccm_zip_dir=_resolve(PROJECT_ROOT, raw.get("sapccmZipDir", "tools")),
         certificates=certificates,
         environments=environments,
         protected_certificates=list(cleanup.get("protectedCertificates") or []),

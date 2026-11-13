@@ -13,6 +13,11 @@ when changing behavior.
 - The only interface to the portal is the SAP CLI `sapccm`. It is proprietary SAP software and is
   **not** part of the repository: users place `CXCOMMCLI*.ZIP` in `tools/`, it is extracted
   automatically to `tools/sapccm/`. No direct REST calls.
+- Installed once, used per project: `certtool.json` is read from the **current directory** (or `--config`);
+  `certificatesPath` (default `./certificates`) is resolved relative to the config file, `sapccmHome`/
+  `sapccmZipDir` relative to the installation (`config.PROJECT_ROOT`). `bin/cxdev-certificates` resolves symlinks
+  so it can be linked into the PATH. Messages shorten paths relative to the current directory
+  (`config.display_path`).
 - Python ≥ 3.9, **standard library only**. Do not add dependencies without agreement.
 - Open source under the Apache License 2.0 (`LICENSE`), copyright cxdevtools.
 
@@ -21,7 +26,7 @@ when changing behavior.
 ```bash
 python3 -m unittest discover -s tests -v   # tests (mock CLI, requires openssl)
 python3 -m certtool --help                 # CLI help
-bin/certificates status -v                 # against the real portal (credentials required)
+bin/cxdev-certificates status -v                 # in a project directory with certtool.json (real portal)
 ```
 
 ## Architecture
@@ -62,12 +67,12 @@ bin/certificates status -v                 # against the real portal (credential
 
 ## Security rules (mandatory)
 
-- Credentials live **only** in the local configuration `config/certtool.json` (git-ignored, like the
+- Credentials live **only** in the local configuration `certtool.json` (git-ignored, like the
   private keys): `credentials` (subscription wide) and optionally `environments.<key>.credentials`, fields
   `tokenEndpoint`, `clientId`, `clientSecret` (required), `clientResource` (unused), `clientExpires`
   (checked before execution, expired → abort). No environment variables, no credential/.env files.
   Never print secret values, never put them on command lines, logs or tests (tests use dummy values),
-  and never read or print the user's `config/certtool.json` contents in a conversation.
+  and never read or print the user's `certtool.json` contents in a conversation.
 - Lookup (`sapccm.Credentials.from_config`): `rollout` (and `status`/`fetch` per environment) use the
   environment block if it defines `clientId`, else the subscription block. `clientSecret`/`clientExpires`
   are only read from the selected block (never mix id and secret of different users), `tokenEndpoint`

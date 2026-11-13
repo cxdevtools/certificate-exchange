@@ -8,8 +8,8 @@ from urllib.parse import urlsplit
 from dataclasses import dataclass
 from typing import Callable, ContextManager, Dict, List, Optional
 
-from .config import (PROJECT_ROOT, SAP_MANAGED_TARGET, UNMANAGED_TARGET, Config, ConfigError, EnvironmentConfig,
-                     is_sap_managed)
+from .config import (SAP_MANAGED_TARGET, UNMANAGED_TARGET, Config, ConfigError, EnvironmentConfig,
+                     display_path, is_sap_managed)
 from .output import Cell, heading, problems, style, summary, table
 from .pem import certificate_domains, check_certificate, domain_covered, upload_parts
 from .sapccm import SapCcm, SapCcmError
@@ -147,7 +147,7 @@ EnvSession = Callable[[EnvironmentConfig], ContextManager[SapCcm]]
 
 def _relative(text: str) -> str:
     """Shorten absolute project paths in messages."""
-    return text.replace(str(PROJECT_ROOT) + os.sep, "")
+    return display_path(text)
 
 
 def _describe(value: str, remote: List[RemoteCertificate]) -> str:

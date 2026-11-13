@@ -73,7 +73,7 @@ COMMANDS.insert(1, CommandHelp(
 ))
 
 GLOBAL_OPTIONS = [
-    ("-c, --config FILE", "Configuration file (default: config/certtool.json)"),
+    ("-c, --config FILE", "Configuration file (default: ./certtool.json)"),
     ("-v, --verbose", "Show every sapccm call and its output"),
     ("-h, --help", "Help for a command, e.g. 'upload --help'"),
     ("--version", "Show the version"),
@@ -81,7 +81,7 @@ GLOBAL_OPTIONS = [
 
 WORKFLOW = [
     "Once: fetch  ->  fetch --apply  (take over environments, endpoints and domains from the portal)",
-    "Add the new certificate to certificates/ and config/certtool.json",
+    "Add the new certificate to certificates/ and certtool.json",
     "upload  ->  upload --apply",
     "rollout d1  ->  rollout d1 --apply  ->  verify  ->  next environment",
     "Remove the old certificate from the configuration  ->  cleanup  ->  cleanup --apply",
@@ -103,6 +103,7 @@ def print_overview(prog: str) -> None:
 
     heading("Usage")
     print(f"  {prog} <command> [options]")
+    print("  Run it in the project directory: certtool.json and certificates/ are read from there.")
 
     heading("Commands")
     for cmd in COMMANDS:
@@ -128,4 +129,4 @@ def print_overview(prog: str) -> None:
     heading("Credentials")
     print("  Taken from the configuration: \"credentials\" (tokenEndpoint, clientId, clientSecret,")
     print("  clientExpires), optionally per environment in environments.<key>.credentials.")
-    print("  Keep config/certtool.json private (chmod 600). Details: README.md")
+    print("  Keep certtool.json private (chmod 600). Details: README.md")

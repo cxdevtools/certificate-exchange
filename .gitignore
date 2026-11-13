@@ -4,11 +4,13 @@ tools/sapccm/
 tools/*.zip
 tools/*.ZIP
 
-# Installation-specific configuration incl. the technical user's credentials - never commit
-config/certtool.json
-
-# Never commit certificates
-certificates/*/
+# Project data: configuration incl. the technical user's credentials, certificates and
+# private keys - never commit (only the example configuration and the empty folder are versioned)
+certtool.json
+certificates/*
+!certificates/.gitkeep
+*.key
+*-key.pem
 
 # Python
 __pycache__/

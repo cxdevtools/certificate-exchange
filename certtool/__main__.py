@@ -13,7 +13,7 @@ from typing import ContextManager, List, Optional
 
 from . import __version__
 from .commands import cmd_cleanup, cmd_fetch, cmd_rollout, cmd_status, cmd_upload
-from .config import PROJECT_ROOT, ConfigError, EnvironmentConfig, load_config
+from .config import ConfigError, EnvironmentConfig, display_path, load_config
 from .output import key_values, style
 from .usage import COMMANDS, command_epilog, print_overview
 from .sapccm import (SAPCCM_OVERRIDE_VAR, Credentials, JavaInfo, SapCcm, SapCcmError, check_java, detect_java,
@@ -39,10 +39,10 @@ class _MainParser(argparse.ArgumentParser):
 
 def build_parser() -> argparse.ArgumentParser:
     # Global options are accepted before and after the sub command
-    # (bin/certificates puts the sub command first).
+    # (bin/cxdev-certificates puts the sub command first).
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("-c", "--config", default=argparse.SUPPRESS,
-                        help="Path to the configuration (default: config/certtool.json)")
+                        help="Path to the configuration (default: ./certtool.json)")
     common.add_argument("-v", "--verbose", action="store_true", default=argparse.SUPPRESS,
                         help="Show sapccm calls and their output")
 
@@ -142,10 +142,7 @@ def print_context(args: argparse.Namespace, cfg, env_cfg: Optional[EnvironmentCo
         environment = f"all configured ({', '.join(e.code for e in cfg.environments.values()) or '-'})"
     else:
         environment = "- (subscription wide)"
-    try:
-        config_path = str(cfg.path.relative_to(PROJECT_ROOT))
-    except ValueError:  # configuration outside the project
-        config_path = str(cfg.path)
+    config_path = display_path(str(cfg.path))
     key_values([
         ("Command", args.command),
         ("Mode", _mode(args)),

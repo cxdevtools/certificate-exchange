@@ -24,7 +24,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from .config import PROJECT_ROOT, Config, ConfigError, EnvironmentConfig
+from .config import Config, ConfigError, EnvironmentConfig, display_path
 
 EXPIRY_WARNING_DAYS = 14
 
@@ -349,7 +349,7 @@ class SapCcm:
         if self._tmp is None:
             raise RuntimeError("SapCcm must be used as context manager")
         printable = "sapccm " + " ".join(shlex.quote(a) for a in args)
-        shown = printable.replace(str(PROJECT_ROOT) + os.sep, "")
+        shown = display_path(printable)
         if self.verbose or mutating:  # changing calls are always shown
             print(f"  $ {shown}")
         proc = subprocess.run(

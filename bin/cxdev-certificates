@@ -1,0 +1,25 @@
+#!/usr/bin/env sh
+# Single entry point for certtool:
+#   cxdev-certificates status [environment]
+#   cxdev-certificates fetch [environment] [--apply]
+#   cxdev-certificates upload [--certificate NAME] [--apply]
+#   cxdev-certificates rollout <environment> [--endpoint CODE] [--apply]
+#   cxdev-certificates cleanup [--include-unused] [--apply]
+# Equivalent to: python3 -m certtool <command> [...]
+#
+# Run it in the project directory: certtool.json (incl. the technical user's credentials) and the
+# certificates are read from there. The script may be symlinked into a directory on the PATH.
+
+# Resolve symlinks to find the certtool installation.
+SCRIPT="$0"
+while [ -L "$SCRIPT" ]; do
+  LINK="$(readlink "$SCRIPT")"
+  case "$LINK" in
+    /*) SCRIPT="$LINK" ;;
+    *) SCRIPT="$(dirname "$SCRIPT")/$LINK" ;;
+  esac
+done
+ROOT="$(cd "$(dirname "$SCRIPT")/.." && pwd)"
+
+CERTTOOL_PROG="$(basename "$0")" PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}" \
+  exec "${PYTHON:-python3}" -m certtool "$@"

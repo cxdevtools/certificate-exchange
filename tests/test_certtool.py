@@ -85,7 +85,7 @@ class SapManagedTest(unittest.TestCase):
 
     def test_example_pattern_matches(self):
         import fnmatch
-        cfg = json.loads((ROOT / "config" / "certtool.example.json").read_text(encoding="utf-8"))
+        cfg = json.loads((ROOT / "certtool.example.json").read_text(encoding="utf-8"))
         patterns = cfg["cleanup"]["protectedCertificates"]
         self.assertTrue(any(fnmatch.fnmatchcase("d1-public - 2026-11-19 (Let's Encrypt)", p) for p in patterns))
 
@@ -184,7 +184,7 @@ class CommandTest(unittest.TestCase):
                 "clientSecret": "s3cr=t:with#chars",
                 "clientResource": "urn:sap:identity:application:provider:name:cp-dependency",
             },
-            "certificatesDir": str(certs_dir),
+            "certificatesPath": "certs",  # relative to the configuration file
             "certificates": {"new-cert": {}, "current-cert": {}},
             "environments": {
                 "d1": {"endpoints": {"storefront": "new-cert", "backoffice": "current-cert"}},
@@ -365,11 +365,56 @@ class CommandTest(unittest.TestCase):
 
     def test_wrapper_runs_with_config_credentials(self):
         env = {k: v for k, v in os.environ.items() if not k.startswith("CXDEV_CCM_")}
-        proc = subprocess.run([str(ROOT / "bin" / "certificates"), "cleanup", "--config", str(self.config)],
+        proc = subprocess.run([str(ROOT / "bin" / "cxdev-certificates"), "cleanup", "--config", str(self.config)],
                               env=env, capture_output=True, text=True)
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertNotIn("s3cr=t:with#chars", proc.stdout + proc.stderr)
         self.assertEqual(self.read_state()["calls"][0]["config"]["client-id"], "client-id-value")
+
+    # -- configuration location -------------------------------------------
+    def run_in(self, directory, *args):
+        cwd = os.getcwd()
+        os.chdir(directory)
+        try:
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+                rc = main(list(args))
+        finally:
+            os.chdir(cwd)
+        return rc, out.getvalue()
+
+    def test_config_from_current_directory(self):
+        rc, out = self.run_in(self.tmp, "upload")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("Configuration  certtool.json", out)
+        self.assertRow(out, "new-cert", None, "would upload")
+
+    def test_missing_config_in_current_directory(self):
+        rc, out = self.run_in(self.tmp / "certs", "status")
+        self.assertEqual(rc, 2)
+        self.assertIn("Run certtool in the project directory that contains certtool.json", out)
+
+    def test_certificates_path_is_relative_to_config_not_cwd(self):
+        (self.tmp / "certs").rename(self.tmp / "certificates")
+        self.update_config(lambda cfg: cfg.pop("certificatesPath"))  # default ./certificates
+        rc, out = self.run_in(ROOT, "--config", str(self.config), "upload")
+        self.assertEqual(rc, 0, out)
+        self.assertRow(out, "new-cert", None, "would upload")
+
+    def test_old_certificates_dir_key_is_rejected(self):
+        self.update_config(lambda cfg: cfg.update(certificatesDir="certs"))
+        rc, out = self.run_tool("status")
+        self.assertEqual(rc, 2)
+        self.assertIn("'certificatesDir' was renamed to 'certificatesPath'", out)
+
+    def test_wrapper_works_through_symlink(self):
+        link_dir = self.tmp / "path-bin"
+        link_dir.mkdir()
+        (link_dir / "cxdev-certificates").symlink_to(ROOT / "bin" / "cxdev-certificates")
+        proc = subprocess.run([str(link_dir / "cxdev-certificates"), "cleanup"], cwd=self.tmp,
+                              capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn("Configuration  certtool.json", proc.stdout)
 
     # -- help ------------------------------------------------------------
     def test_overview_without_arguments(self):

@@ -15,17 +15,17 @@ This project automates the process and makes it reproducible:
 
 | Step | Command | What happens |
 |---|---|---|
-| **Fetch** | `bin/certificates fetch [environment] [--apply]` | Reads environments, endpoints and their domains from the portal and adds endpoints that are missing in the configuration. Existing entries are never changed. Without `--apply` only a preview is shown. |
-| **Upload** | `bin/certificates upload [--apply]` | Checks which configured certificates are missing in the subscription and uploads only those (idempotent). Without `--apply` only a preview is shown. |
-| **Rollout** | `bin/certificates rollout <environment> [--apply]` | Assigns the configured certificates to the endpoints of **one** environment passed as parameter. Endpoints that already use the right certificate are left untouched. Without `--apply` only a preview is shown. |
-| **Cleanup** | `bin/certificates cleanup [--include-unused] [--apply]` | Removes certificates that are no longer needed. With `--include-unused` it also removes configured certificates that are not assigned to any endpoint. SAP-managed certificates, certificates on the protection list and certificates still in use are never deleted. |
-| **Status** | `bin/certificates status [environment]` | Shows local certificates, uploaded certificates and, per environment, the certificate **actually assigned** to each endpoint compared with the configured target. Read-only. |
+| **Fetch** | `cxdev-certificates fetch [environment] [--apply]` | Reads environments, endpoints and their domains from the portal and adds endpoints that are missing in the configuration. Existing entries are never changed. Without `--apply` only a preview is shown. |
+| **Upload** | `cxdev-certificates upload [--apply]` | Checks which configured certificates are missing in the subscription and uploads only those (idempotent). Without `--apply` only a preview is shown. |
+| **Rollout** | `cxdev-certificates rollout <environment> [--apply]` | Assigns the configured certificates to the endpoints of **one** environment passed as parameter. Endpoints that already use the right certificate are left untouched. Without `--apply` only a preview is shown. |
+| **Cleanup** | `cxdev-certificates cleanup [--include-unused] [--apply]` | Removes certificates that are no longer needed. With `--include-unused` it also removes configured certificates that are not assigned to any endpoint. SAP-managed certificates, certificates on the protection list and certificates still in use are never deleted. |
+| **Status** | `cxdev-certificates status [environment]` | Shows local certificates, uploaded certificates and, per environment, the certificate **actually assigned** to each endpoint compared with the configured target. Read-only. |
 
 Principles:
 
 - **Configuration instead of click paths** – environments, endpoints and certificates are versioned
-  in `config/certtool.json`.
-- **Local data stays local** – `config/certtool.json` holds the technical user's credentials next to
+  in `certtool.json`.
+- **Local data stays local** – `certtool.json` holds the technical user's credentials next to
   the subscription code, and `certificates/` holds private keys. Both are excluded from version
   control and must never be shared.
 - **Safe by default** – upload, rollout and cleanup only show a preview; changes are made only
@@ -63,14 +63,14 @@ remove old certificate from config ─► cleanup (preview) ─► cleanup --app
 
 1. Add the new certificate under a **new, descriptive name** (e.g. `www-example-com-2026`), see
    [section 6](#6-storing-certificates).
-2. In `config/certtool.json`, add the certificate under `certificates` and point the endpoints of the
+2. In `certtool.json`, add the certificate under `certificates` and point the endpoints of the
    affected environments to the new name.
-3. `bin/certificates upload` – shows the upload preview incl. local checks, then
-   `bin/certificates upload --apply` uploads the new certificate.
-4. `bin/certificates rollout d1` – shows which endpoints would be switched, then
-   `bin/certificates rollout d1 --apply` switches them. Roll out to a development environment first
+3. `cxdev-certificates upload` – shows the upload preview incl. local checks, then
+   `cxdev-certificates upload --apply` uploads the new certificate.
+4. `cxdev-certificates rollout d1` – shows which endpoints would be switched, then
+   `cxdev-certificates rollout d1 --apply` switches them. Roll out to a development environment first
    and verify, then stage and production.
-5. Remove the old certificate from `certificates`, run `bin/certificates cleanup` as a preview and
+5. Remove the old certificate from `certificates`, run `cxdev-certificates cleanup` as a preview and
    then delete with `--apply`.
 
 ## 3. Requirements
@@ -92,6 +92,38 @@ remove old certificate from config ─► cleanup (preview) ─► cleanup --app
 
 Both the ZIP file and the extracted CLI are excluded from version control via `.gitignore`. A CLI
 installed elsewhere can be referenced with `sapccmHome` in the configuration.
+
+### Installing certtool once, using it in many projects
+
+The tool is installed once; each project only contains its own configuration and certificates:
+
+```
+~/tools/certtool/              # this repository (incl. tools/ with the SAP CLI)
+~/projects/customer-a/
+├── certtool.json              # configuration incl. credentials (chmod 600)
+└── certificates/              # certificates of this project
+~/projects/customer-b/
+├── certtool.json
+└── certificates/
+```
+
+Put `cxdev-certificates` on your `PATH`, e.g. with a symlink (the script resolves symlinks to find its
+installation):
+
+```bash
+ln -s ~/tools/certtool/bin/cxdev-certificates ~/.local/bin/cxdev-certificates
+```
+
+Then run it inside a project directory:
+
+```bash
+cd ~/projects/customer-a
+cxdev-certificates status
+```
+
+`certtool` reads `certtool.json` from the **current directory**. With `--config <file>` another file
+can be used; relative paths in it (`certificatesPath`) are always resolved **relative to the
+configuration file**, never to the current directory.
 
 ### JVM warnings of the SAP CLI
 
@@ -130,7 +162,7 @@ The CLI authenticates via OAuth2 client credentials using a **technical user** o
 
 ![The "Client Credentials" dialog shown when creating a technical user (credentials redacted)](docs/images/technical-user-credentials.webp)
 
-Every field of the dialog maps to a field of the `credentials` block in `config/certtool.json`
+Every field of the dialog maps to a field of the `credentials` block in `certtool.json`
 (see [section 5](#5-providing-the-credentials)):
 
 | Dialog field | Configuration field | Required | Usage |
@@ -146,7 +178,7 @@ good time.
 
 ## 5. Providing the credentials
 
-The credentials are stored in the local configuration `config/certtool.json`, next to the
+The credentials are stored in the local configuration `certtool.json`, next to the
 subscription code. The file is installation specific, excluded from version control (`.gitignore`)
 and must never be shared – just like the private keys in `certificates/`.
 
@@ -176,7 +208,7 @@ and must never be shared – just like the private keys in `certificates/`.
 Protect the file so that only you can read it:
 
 ```bash
-chmod 600 config/certtool.json
+chmod 600 certtool.json
 ```
 
 `certtool` prints a warning if the file is accessible by other users. Secret values are never
@@ -293,11 +325,10 @@ next to the old one and rolled out step by step.
 
 ## 7. Configuration
 
-The configuration lives in `config/certtool.json` (template: [`config/certtool.example.json`](config/certtool.example.json)).
-It contains **no** secrets. In this repository it is listed in `.gitignore` so that
-installation-specific values (subscription code, endpoint codes) are not published by accident –
-remove that entry if you maintain your configuration in a private fork. A different file can be
-passed with `--config <path>`.
+The configuration is `certtool.json` in the project directory (the current directory; template:
+[`certtool.example.json`](certtool.example.json)). It contains the technical user's credentials and
+must never be shared or committed – in this repository `certtool.json` and `certificates/*` are
+listed in `.gitignore`. A different file can be passed with `--config <path>`.
 
 ```json
 {
@@ -338,8 +369,8 @@ passed with `--config <path>`.
 | `subscriptionCode` | yes | Code of the subscription (see Cloud Portal URL). Also determines the names of the credential variables. |
 | `credentials` | yes | Technical user of the subscription: `tokenEndpoint`, `clientId`, `clientSecret`, optional `clientResource`, `clientExpires` (see [section 5](#5-providing-the-credentials)). |
 | `credentialsExpiresFormat` | no | Different strptime format for `clientExpires` (default: portal format DD/MM/YYYY hh:mm:ss AM/PM). |
-| `certificatesDir` | no | Base directory of the certificates, default `certificates`. |
-| `sapccmHome` / `sapccmZipDir` | no | Location of the extracted CLI (default `tools/sapccm`) or of the ZIP archive (default `tools`). |
+| `certificatesPath` | no | Directory of the certificates, **relative to the configuration file** (or absolute), default `./certificates`. |
+| `sapccmHome` / `sapccmZipDir` | no | Location of the extracted CLI (default `tools/sapccm`) or of the ZIP archive (default `tools`), relative to the **certtool installation**. |
 | `certificates.<name>` | – | Certificates that should exist in the subscription. The key is the **name in the portal**. Printable ASCII only. Optional: `directory`, `certificate`, `privateKey`, `caChain`. |
 | `environments.<key>` | – | Environment definition. The key is the parameter for `rollout`. |
 | `environments.<key>.code` | no | Environment code in the portal, default = key (e.g. `d1`, `s1`, `p1`). |
@@ -349,11 +380,11 @@ passed with `--config <path>`.
 | `…endpoints.<code>.domain` | no | Expected domain of the endpoint. `rollout` and `status` compare it with the domain in the portal (`domain differs from configuration`); it is also used for the certificate domain check if the portal does not show a domain. |
 | `cleanup.protectedCertificates` | no | Certificates the cleanup **never** deletes – by name or certificate code, wildcards `*`/`?` allowed. SAP-managed certificates are additionally always protected (see below). |
 
-Relative paths are resolved against the project directory.
+`certificatesPath` is resolved relative to the configuration file, `sapccmHome`/`sapccmZipDir` relative to the certtool installation.
 
 ### Filling the configuration from the portal (`fetch`)
 
-`bin/certificates fetch` reads all environments of the subscription (`sapccm environment list`), their
+`cxdev-certificates fetch` reads all environments of the subscription (`sapccm environment list`), their
 endpoints and domains (`sapccm endpoint list`) and the certificate currently assigned to each new
 endpoint (`sapccm endpoint show`). Endpoints that are **missing** in the configuration are added in the
 long form; the `certificate` field is set to
@@ -369,32 +400,33 @@ configuration file is rewritten as JSON with 2-space indentation (key order is k
 custom formatting are not). Each environment is read with its own credentials, as in `status`.
 
 ```bash
-bin/certificates fetch            # preview: which endpoints would be added
-bin/certificates fetch --apply    # add missing endpoints of all environments
-bin/certificates fetch d1 --apply # only environment d1
+cxdev-certificates fetch            # preview: which endpoints would be added
+cxdev-certificates fetch --apply    # add missing endpoints of all environments
+cxdev-certificates fetch d1 --apply # only environment d1
 ```
 
 ## 8. Usage
 
-`bin/certificates` without arguments (or with `--help`) prints an overview of all commands with
-examples; `bin/certificates <command> --help` shows the options and examples of one command.
+`cxdev-certificates` without arguments (or with `--help`) prints an overview of all commands with
+examples; `cxdev-certificates <command> --help` shows the options and examples of one command.
 
-All commands can be run through `bin/certificates <command>` (macOS/Linux) or directly with Python
-(Windows: `python -m certtool <command>` in the project directory).
+Run all commands in the project directory, through `cxdev-certificates <command>` (on the `PATH`, see
+[Installing certtool once](#installing-certtool-once-using-it-in-many-projects)) or `<install dir>/bin/cxdev-certificates <command>`
+(macOS/Linux). On Windows: `python -m certtool <command>` with `PYTHONPATH` set to the installation directory.
 
 ```bash
-bin/certificates status                    # overview local vs. portal incl. actual endpoint certificates
-bin/certificates status d1                 # only environment d1
-bin/certificates upload                    # preview: what would be uploaded (incl. local checks)
-bin/certificates upload --apply            # upload missing certificates
-bin/certificates upload --certificate www-example-com-2026 --apply
-bin/certificates rollout d1                # preview: which endpoints would be switched
-bin/certificates rollout d1 --apply        # switch environment d1
-bin/certificates rollout d1 --endpoint <ENDPOINT_CODE> --apply
-bin/certificates cleanup                   # preview: what would be deleted
-bin/certificates cleanup --apply           # actually delete
-bin/certificates cleanup --include-unused  # preview incl. configured certificates without endpoint
-bin/certificates cleanup --include-unused --apply
+cxdev-certificates status                    # overview local vs. portal incl. actual endpoint certificates
+cxdev-certificates status d1                 # only environment d1
+cxdev-certificates upload                    # preview: what would be uploaded (incl. local checks)
+cxdev-certificates upload --apply            # upload missing certificates
+cxdev-certificates upload --certificate www-example-com-2026 --apply
+cxdev-certificates rollout d1                # preview: which endpoints would be switched
+cxdev-certificates rollout d1 --apply        # switch environment d1
+cxdev-certificates rollout d1 --endpoint <ENDPOINT_CODE> --apply
+cxdev-certificates cleanup                   # preview: what would be deleted
+cxdev-certificates cleanup --apply           # actually delete
+cxdev-certificates cleanup --include-unused  # preview incl. configured certificates without endpoint
+cxdev-certificates cleanup --include-unused --apply
 ```
 
 Global options (before or after the command): `--config <file>`,
@@ -409,7 +441,7 @@ values are never shown):
 SAP Commerce Cloud Certificate Exchange · certtool 0.1.0
   Command        rollout
   Mode           preview (use --apply to switch the endpoints)
-  Configuration  config/certtool.json
+  Configuration  certtool.json
   Subscription   20cd84081f9e41a19b71e5f699129534
   Environment    d1 (demo)
   Credentials    credentials · secret expires 2027-05-11 (180 days)
@@ -542,18 +574,18 @@ usage errors (e.g. missing or expired credentials).
 ## 9. Project structure
 
 ```
-├── bin/certificates           # shell entry point: bin/certificates <command> [...]
+├── bin/cxdev-certificates           # shell entry point: certificates <command> [...] (symlink it into the PATH)
 ├── certtool/                  # Python package
 │   ├── __main__.py            # CLI (argparse)
-│   ├── commands.py            # upload / rollout / cleanup / status
+│   ├── commands.py            # status / fetch / upload / rollout / cleanup
 │   ├── config.py              # loading & validating the configuration
 │   ├── sapccm.py              # running the sapccm CLI with an isolated credential configuration
 │   ├── tables.py              # parser for the CLI's ASCII tables
 │   ├── output.py              # console tables, context header, colors
 │   ├── usage.py               # help overview and command examples
 │   └── pem.py                 # local certificate checks (openssl)
-├── certificates/              # certificates (one directory per certificate)
-├── config/certtool.example.json
+├── certificates/              # certificates when this directory is used as project directory (not versioned)
+├── certtool.example.json      # template for certtool.json in a project directory
 ├── docs/images/               # images used in the documentation
 ├── tests/                     # unit tests incl. sapccm mock
 └── tools/                     # place the SAP CLI ZIP here (not versioned)
