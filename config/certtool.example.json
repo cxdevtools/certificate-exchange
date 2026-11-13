@@ -8,17 +8,17 @@
     "clientExpires": "<DD/MM/YYYY hh:mm:ss AM/PM>"
   },
   "certificates": {
-    "www-example-com-2026": {
-      "directory": "example-com-2026",
-      "certificate": "www-certificate.pem",
-      "privateKey": "www-private-key.pem",
-      "caChain": "www-ca-chain.pem"
+    "2026": {
+      "directory": "2026",
+      "certificate": "certificate.pem",
+      "privateKey": "private-key.pem",
+      "caChain": "ca-chain.pem"
     },
-    "wildcard-example-com-2026": {
-      "directory": "example-com-2026",
-      "certificate": "wildcard-certificate.pem",
-      "privateKey": "wildcard-private-key.pem",
-      "caChain": "wildcard-ca-chain.pem"
+    "2027": {
+      "directory": "2027",
+      "certificate": "certificate.pem",
+      "privateKey": "private-key.pem",
+      "caChain": "ca-chain.pem"
     }
   },
   "environments": {
@@ -27,12 +27,24 @@
       "endpoints": {
         "jsapps": {
           "domain": "www.example.com",
-          "certificate": "www-example-com-2026"
+          "certificate": "2026"
         },
-        "backoffice": "wildcard-example-com-2026",
-        "api": "wildcard-example-com-2026",
-        "processing": "wildcard-example-com-2026",
-        "solr": "sap-managed"
+        "backoffice":{
+          "domain": "backoffice.example.com",
+          "certificate": "2026"
+        },
+        "api":{
+          "domain": "api.example.com",
+          "certificate": "2026"
+        },
+        "processing":{
+          "domain": "backgroundprocessing.example.com",
+          "certificate": "2026"
+        },
+        "solr":{
+          "domain": "solr.example.com",
+          "certificate": "sap-managed"
+        }
       }
     }
   },
