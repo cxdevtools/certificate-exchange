@@ -1,0 +1,13 @@
+#!/usr/bin/env sh
+# Single entry point for certtool:
+#   bin/certificates status [environment]
+#   bin/certificates fetch [environment] [--apply]
+#   bin/certificates upload [--certificate NAME] [--apply]
+#   bin/certificates rollout <environment> [--endpoint CODE] [--apply]
+#   bin/certificates cleanup [--include-unused] [--apply]
+# The technical user's credentials are read from the configuration (config/certtool.json).
+# Equivalent to: python3 -m certtool <command> [...]
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+CERTTOOL_PROG="bin/certificates" PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}" \
+  exec "${PYTHON:-python3}" -m certtool "$@"

@@ -1,0 +1,45 @@
+{
+  "subscriptionCode": "<SUBSCRIPTION_CODE>",
+  "credentials": {
+    "tokenEndpoint": "https://ycloud.accounts.ondemand.com/oauth2/token",
+    "clientId": "<CLIENT_ID>",
+    "clientSecret": "<CLIENT_SECRET>",
+    "clientResource": "urn:sap:identity:application:provider:name:cp-dependency",
+    "clientExpires": "<DD/MM/YYYY hh:mm:ss AM/PM>"
+  },
+  "certificates": {
+    "www-example-com-2026": {
+      "directory": "example-com-2026",
+      "certificate": "www-certificate.pem",
+      "privateKey": "www-private-key.pem",
+      "caChain": "www-ca-chain.pem"
+    },
+    "wildcard-example-com-2026": {
+      "directory": "example-com-2026",
+      "certificate": "wildcard-certificate.pem",
+      "privateKey": "wildcard-private-key.pem",
+      "caChain": "wildcard-ca-chain.pem"
+    }
+  },
+  "environments": {
+    "d1": {
+      "description": "Development",
+      "endpoints": {
+        "jsapps": {
+          "domain": "www.example.com",
+          "certificate": "www-example-com-2026"
+        },
+        "backoffice": "wildcard-example-com-2026",
+        "api": "wildcard-example-com-2026",
+        "processing": "wildcard-example-com-2026",
+        "solr": "sap-managed"
+      }
+    }
+  },
+  "cleanup": {
+    "protectedCertificates": [
+      "*-public - * (Let's Encrypt)",
+      "<NAME_OR_CODE_OF_OTHER_CERTIFICATES>"
+    ]
+  }
+}
