@@ -1,0 +1,3 @@
+# Windows batch files need CRLF line endings, shell scripts LF
+*.bat text eol=crlf
+bin/cxdev-certificates text eol=lf

@@ -16,7 +16,8 @@ when changing behavior.
 - Installed once, used per project: `certtool.json` is read from the **current directory** (or `--config`);
   `certificatesPath` (default `./certificates`) is resolved relative to the config file, `sapccmHome`/
   `sapccmZipDir` relative to the installation (`config.PROJECT_ROOT`). `bin/cxdev-certificates` resolves symlinks
-  so it can be linked into the PATH. Messages shorten paths relative to the current directory
+  so it can be linked into the PATH; `bin/cxdev-certificates.bat` is the Windows wrapper (CRLF, see
+  `.gitattributes`) – keep both wrappers in sync. Messages shorten paths relative to the current directory
   (`config.display_path`).
 - Python ≥ 3.9, **standard library only**. Do not add dependencies without agreement.
 - Open source under the Apache License 2.0 (`LICENSE`), copyright cxdevtools.

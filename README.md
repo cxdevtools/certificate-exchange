@@ -114,6 +114,12 @@ installation):
 ln -s ~/tools/certtool/bin/cxdev-certificates ~/.local/bin/cxdev-certificates
 ```
 
+On **Windows**, use `bin\cxdev-certificates.bat` and add the `bin` directory of the installation to
+the user `PATH` (symlinks are not needed), e.g. via *Settings → "Edit environment variables for your
+account" → Path → New* (`C:\tools\certtool\bin`). Avoid `setx PATH "%PATH%;…"`: it truncates long
+values and copies the system PATH into the user PATH. The wrapper uses `%PYTHON%` if set, otherwise
+the Python launcher `py -3`, otherwise `python`.
+
 Then run it inside a project directory:
 
 ```bash
@@ -412,7 +418,7 @@ examples; `cxdev-certificates <command> --help` shows the options and examples o
 
 Run all commands in the project directory, through `cxdev-certificates <command>` (on the `PATH`, see
 [Installing certtool once](#installing-certtool-once-using-it-in-many-projects)) or `<install dir>/bin/cxdev-certificates <command>`
-(macOS/Linux). On Windows: `python -m certtool <command>` with `PYTHONPATH` set to the installation directory.
+(macOS/Linux), or `cxdev-certificates <command>` via `bin\cxdev-certificates.bat` (Windows).
 
 ```bash
 cxdev-certificates status                    # overview local vs. portal incl. actual endpoint certificates
@@ -574,7 +580,8 @@ usage errors (e.g. missing or expired credentials).
 ## 9. Project structure
 
 ```
-├── bin/cxdev-certificates           # shell entry point: certificates <command> [...] (symlink it into the PATH)
+├── bin/cxdev-certificates     # shell entry point: cxdev-certificates <command> [...] (symlink it into the PATH)
+├── bin/cxdev-certificates.bat # the same for Windows (add bin\ to the PATH)
 ├── certtool/                  # Python package
 │   ├── __main__.py            # CLI (argparse)
 │   ├── commands.py            # status / fetch / upload / rollout / cleanup

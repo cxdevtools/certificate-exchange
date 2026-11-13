@@ -416,6 +416,15 @@ class CommandTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertIn("Configuration  certtool.json", proc.stdout)
 
+    def test_windows_wrapper_matches_shell_wrapper(self):
+        bat = (ROOT / "bin" / "cxdev-certificates.bat").read_bytes()
+        self.assertIn(b"\r\n", bat)
+        self.assertNotIn(b"\n", bat.replace(b"\r\n", b""), "batch file must use CRLF line endings")
+        text = bat.decode("ascii")
+        self.assertIn("-m certtool %*", text)
+        self.assertIn('set "CERTTOOL_PROG=cxdev-certificates"', text)
+        self.assertIn("exit /b %ERRORLEVEL%", text)
+
     # -- help ------------------------------------------------------------
     def test_overview_without_arguments(self):
         for argv in ([], ["--help"]):
