@@ -6,8 +6,29 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class CertToolTest {
+    @Test void prefersLocalSapccmArchive(@TempDir Path root) throws Exception {
+        Path tools = Files.createDirectories(root.resolve("tools"));
+        Path local = Files.createFile(tools.resolve("CXCOMMCLI01.ZIP"));
+        Path shared = Files.createDirectories(root.resolve("dependencies/sapccm"));
+        Files.createFile(shared.resolve("CXCOMMCLI99.ZIP"));
+
+        assertEquals(local, CertTool.findSapccmArchive(tools, root));
+    }
+
+    @Test void findsSapccmArchiveInNestedEnvironmentDirectory(@TempDir Path root) throws Exception {
+        Path shared = Files.createDirectories(root.resolve("dependencies/sapccm-downloads/current"));
+        Path archive = Files.createFile(shared.resolve("cxcommcli02.zip"));
+        Path unrelated = Files.createDirectories(root.resolve("dependencies/sapartefacts"));
+        Files.createFile(unrelated.resolve("CXCOMMCLI99.ZIP"));
+        Files.createFile(shared.resolve("unrelated.zip"));
+
+        assertEquals(archive.toRealPath(), CertTool.findSapccmArchive(root.resolve("tools"), root));
+        assertNull(CertTool.findSapccmArchive(root.resolve("tools"), null));
+    }
+
     @Test void parsesSapAsciiTablesWithSpacedValues() {
         String text = "CERTIFICATE CODE  NAME          ISSUER            ENDPOINTS COUNT\n"
                 + "abc123            my cert name  Let's Encrypt R3  2\n";

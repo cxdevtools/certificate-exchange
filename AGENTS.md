@@ -12,7 +12,8 @@ when changing behavior.
   configured certificates without endpoint), **status**, **fetch** (add missing endpoints from the portal to the configuration).
 - The only interface to the portal is the SAP CLI `sapccm`. It is proprietary SAP software and is
   **not** part of the repository: users place `CXCOMMCLI*.ZIP` in `tools/`, it is extracted
-  automatically to `tools/sapccm/`. No direct REST calls.
+  automatically to `tools/sapccm/`. If there is no local archive, certtool searches
+  `$CXDEVHOME/dependencies/sapccm*/` recursively. No direct REST calls.
 - Installed once, used per project: `certtool.json` is read from the **current directory** (or `--config`);
   `certificatesPath` (default `./certificates`) is resolved relative to the config file, `sapccmHome`/
   `sapccmZipDir` relative to the installation (`config.PROJECT_ROOT`). `bin/cxdev-certificates` resolves symlinks

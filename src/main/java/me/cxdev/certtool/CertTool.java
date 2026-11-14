@@ -199,17 +199,54 @@ public final class CertTool {
         return value.matches(regex.append('$').toString());
     }
 
+    static Path findSapccmArchive(Path zipDir, Path cxdevHome) throws IOException {
+        if (Files.isDirectory(zipDir)) {
+            try (var files = Files.list(zipDir)) {
+                Path local = files.filter(CertTool::isSapccmArchive).max(Comparator.naturalOrder()).orElse(null);
+                if (local != null) return local;
+            }
+        }
+        if (cxdevHome == null) return null;
+        Path dependencies = cxdevHome.resolve("dependencies");
+        if (!Files.isDirectory(dependencies)) return null;
+
+        Comparator<Path> archiveOrder = Comparator.comparing((Path path) -> path.getFileName().toString())
+                .thenComparing(Comparator.naturalOrder());
+        Path archive = null;
+        try (var directories = Files.list(dependencies)) {
+            for (Path directory : directories.filter(Files::isDirectory)
+                    .filter(path -> path.getFileName().toString().startsWith("sapccm")).toList()) {
+                try (var files = Files.walk(directory.toRealPath())) {
+                    Path candidate = files.filter(CertTool::isSapccmArchive).max(archiveOrder).orElse(null);
+                    if (candidate != null && (archive == null || archiveOrder.compare(candidate, archive) > 0)) {
+                        archive = candidate;
+                    }
+                }
+            }
+        }
+        return archive;
+    }
+
+    private static boolean isSapccmArchive(Path path) {
+        String name = path.getFileName().toString().toUpperCase(Locale.ROOT);
+        return name.startsWith("CXCOMMCLI") && name.endsWith(".ZIP") && Files.isRegularFile(path);
+    }
+
     private static List<String> locateSapccm(Path home,Path zipDir) throws IOException {
         String override=System.getenv("CERTTOOL_SAPCCM");
         if(override!=null&&!override.isBlank()) return Arrays.asList(override.split("\\s+"));
         boolean win=System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win");
         Path script=home.resolve("bin").resolve(win?"sapccm.bat":"sapccm");
         if(!Files.isRegularFile(script)) {
-            if(!Files.isDirectory(zipDir)) throw new ConfigException("sapccm not found ("+script+") and no CLI archive in "+zipDir+".");
-            Path archive;
-            try(var files=Files.list(zipDir)){ archive=files.filter(Files::isRegularFile).filter(p->p.getFileName().toString().toUpperCase(Locale.ROOT).startsWith("CXCOMMCLI")&&p.toString().toLowerCase(Locale.ROOT).endsWith(".zip")).sorted().reduce((a,b)->b).orElse(null); }
-            if(archive==null) throw new ConfigException("sapccm not found and no CXCOMMCLI*.ZIP in "+zipDir+". Download it from SAP Software Downloads.");
-            System.err.println("Extracting "+archive.getFileName()+" to "+home+" ..."); Files.createDirectories(home);
+            String environmentHome = System.getenv("CXDEVHOME");
+            Path cxdevHome = environmentHome == null || environmentHome.isBlank() ? null : Path.of(environmentHome);
+            Path archive = findSapccmArchive(zipDir, cxdevHome);
+            if (archive == null) {
+                String fallback = cxdevHome == null ? "" : " or under " + cxdevHome.resolve("dependencies/sapccm*");
+                throw new ConfigException("sapccm not found (" + script + ") and no CXCOMMCLI*.ZIP in " + zipDir
+                        + fallback + ". Download it from SAP Software Downloads.");
+            }
+            System.err.println("Extracting "+archive+" to "+home+" ..."); Files.createDirectories(home);
             try(ZipInputStream in=new ZipInputStream(Files.newInputStream(archive))){ ZipEntry e; while((e=in.getNextEntry())!=null){Path target=home.resolve(e.getName()).normalize(); if(!target.startsWith(home.normalize()))throw new ConfigException("Unsafe path in SAP CLI archive."); if(e.isDirectory())Files.createDirectories(target);else{Files.createDirectories(target.getParent());Files.copy(in,target,StandardCopyOption.REPLACE_EXISTING);} }}
             if(!Files.isRegularFile(script))throw new ConfigException(script+" not found after extracting the archive.");
         }

@@ -88,7 +88,12 @@ remove old certificate from config ─► cleanup (preview) ─► cleanup --app
 1. Download the **SAP Commerce Cloud Management CLI** from
    [SAP Software Downloads](https://me.sap.com/softwarecenter) (search for `CX COMM CLOUD MAN CLI`).
 2. Place the ZIP file (e.g. `CXCOMMCLI00P_42-80005133.ZIP`) in the `tools/` directory.
-3. On the first run, `certtool` extracts it automatically to `tools/sapccm/`.
+3. If `sapccm` is not yet installed, `certtool` extracts the ZIP to `tools/sapccm/`.
+
+In a CXDEV environment, `certtool` also searches `$CXDEVHOME/dependencies/sapccm/` and sibling
+directories whose names start with `sapccm`, including their subdirectories. This search is a
+fallback when the certtool ZIP directory (`tools/` by default, configurable via `sapccmZipDir`)
+contains no `CXCOMMCLI*.ZIP` archive. The shared archive stays in place.
 
 Both the ZIP file and the extracted CLI are excluded from version control via `.gitignore`. A CLI
 installed elsewhere can be referenced with `sapccmHome` in the configuration.
