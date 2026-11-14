@@ -633,8 +633,10 @@ Tests are implemented with JUnit 5. `gradle releaseZip` builds a ZIP containing 
 runtime libraries and both launchers. Publishing a GitHub release automatically attaches this ZIP as
 `certtool-<version>.zip`.
 
-Set the local build version in `gradle.properties` (`releaseVersion=…`). The release workflow replaces
-it with the published GitHub release tag, so no separate version secret or manual workflow edit is needed.
+Set the local build version in `gradle.properties` (`releaseVersion=…`). The release workflow uses
+the tag as the build version. Before releasing, update [RELEASE_NOTES.md](RELEASE_NOTES.md) on the
+commit you want to tag. Pushing a version tag such as `0.2.1` or `v0.2.1` builds the ZIP, runs the
+tests and publishes a GitHub release titled `Release 0.2.1` with those notes and the ZIP attached.
 
 ## License
 
