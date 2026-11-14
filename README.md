@@ -609,7 +609,7 @@ usage errors (e.g. missing or expired credentials).
 ├── certtool.example.json      # template for certtool.json in a project directory
 ├── docs/images/               # images used in the documentation
 ├── test/java/                 # JUnit tests
-├── lib/                       # release JAR and downloaded runtime libraries
+├── lib/                       # generated application JAR and runtime libraries
 └── tools/                     # place the SAP CLI ZIP here (not versioned)
 ```
 
@@ -650,11 +650,14 @@ The following points still need to be verified against a real environment:
 ## 12. Tests
 
 ```bash
-gradle test
-gradle releaseZip
+./gradlew test
+./gradlew releaseZip
 ```
 
-Tests are implemented with JUnit 5. `gradle releaseZip` builds a ZIP containing the application JAR,
+Run `./gradlew copyRuntimeLibraries` before using the launchers from a fresh checkout. Gradle
+builds the application JAR and copies it and its runtime dependencies into `lib/`.
+
+Tests are implemented with JUnit 5. `./gradlew releaseZip` builds a ZIP containing the application JAR,
 runtime libraries and both launchers. Publishing a GitHub release automatically attaches this ZIP as
 `certtool-<version>.zip`.
 
