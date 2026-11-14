@@ -1,40 +1,26 @@
 @echo off
-rem Single entry point for certtool on Windows:
-rem   cxdev-certificates status [environment]
-rem   cxdev-certificates fetch [environment] [--apply]
-rem   cxdev-certificates upload [--certificate NAME] [--apply]
-rem   cxdev-certificates rollout <environment> [--endpoint CODE] [--apply]
-rem   cxdev-certificates cleanup [--include-unused] [--apply]
-rem Equivalent to: python -m certtool <command> [...]
-rem
-rem Run it in the project directory: certtool.json (incl. the technical user's credentials) and the
-rem certificates are read from there. Add this bin directory to the PATH to use it everywhere.
-rem Python: %PYTHON% if set, else the Python launcher "py -3", else "python".
+rem Single entry point for certtool. Run from a project directory with certtool.json.
 setlocal
-
-rem Installation directory = parent of this script's directory
 for %%I in ("%~dp0..") do set "ROOT=%%~fI"
-
-if defined PYTHONPATH goto prepend
-set "PYTHONPATH=%ROOT%"
-goto python
-:prepend
-set "PYTHONPATH=%ROOT%;%PYTHONPATH%"
-
-:python
 set "CERTTOOL_PROG=cxdev-certificates"
-if defined PYTHON goto run_custom
-where py >nul 2>nul
-if not errorlevel 1 goto run_launcher
-python -m certtool %*
+set "CERTTOOL_HOME=%ROOT%"
+if defined JAVA goto run_custom
+if defined JAVA_HOME goto run_java_home
+where java >nul 2>nul
+if errorlevel 1 goto no_java
+java -cp "%ROOT%\lib\*" com.cxdevtools.certtool.CertTool %*
 goto end
-
 :run_custom
-"%PYTHON%" -m certtool %*
+"%JAVA%" -cp "%ROOT%\lib\*" com.cxdevtools.certtool.CertTool %*
 goto end
-
-:run_launcher
-py -3 -m certtool %*
-
+:run_java_home
+"%JAVA_HOME%\bin\java.exe" -cp "%ROOT%\lib\*" com.cxdevtools.certtool.CertTool %*
+goto end
+:no_java
+echo ERROR: Java 21 or newer is required. Install it or set JAVA to its executable. 1>&2
+set "RESULT=2"
+goto result
 :end
-exit /b %ERRORLEVEL%
+set "RESULT=%ERRORLEVEL%"
+:result
+exit /b %RESULT%

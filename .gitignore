@@ -1,20 +1,20 @@
-# SAP Commerce Cloud Management CLI - proprietary SAP software, download it yourself
+# SAP Commerce Cloud Management CLI - proprietary SAP software
 # (the ZIP in tools/ is extracted automatically to tools/sapccm/)
 tools/sapccm/
 tools/*.zip
 tools/*.ZIP
 
-# Project data: configuration incl. the technical user's credentials, certificates and
-# private keys - never commit (only the example configuration and the empty folder are versioned)
+# Project data: credentials, certificates, and private keys
 certtool.json
 certificates/*
 !certificates/.gitkeep
 *.key
 *-key.pem
 
-# Python
-__pycache__/
-*.pyc
+# Gradle / Java outputs
+.gradle/
+build/
+*.class
 
 # OS / IDE
 .DS_Store

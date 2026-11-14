@@ -5,7 +5,7 @@
 #   cxdev-certificates upload [--certificate NAME] [--apply]
 #   cxdev-certificates rollout <environment> [--endpoint CODE] [--apply]
 #   cxdev-certificates cleanup [--include-unused] [--apply]
-# Equivalent to: python3 -m certtool <command> [...]
+# Starts the Java application with its bundled libraries.
 #
 # Run it in the project directory: certtool.json (incl. the technical user's credentials) and the
 # certificates are read from there. The script may be symlinked into a directory on the PATH.
@@ -21,5 +21,8 @@ while [ -L "$SCRIPT" ]; do
 done
 ROOT="$(cd "$(dirname "$SCRIPT")/.." && pwd)"
 
-CERTTOOL_PROG="$(basename "$0")" PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}" \
-  exec "${PYTHON:-python3}" -m certtool "$@"
+JAVA_CMD="${JAVA:-}"
+if [ -z "$JAVA_CMD" ] && [ -n "${JAVA_HOME:-}" ]; then JAVA_CMD="$JAVA_HOME/bin/java"; fi
+JAVA_CMD="${JAVA_CMD:-java}"
+CERTTOOL_HOME="$ROOT" CERTTOOL_PROG="$(basename "$0")" \
+  exec "$JAVA_CMD" -cp "$ROOT/lib/*" com.cxdevtools.certtool.CertTool "$@"

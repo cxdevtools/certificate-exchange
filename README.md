@@ -77,8 +77,8 @@ remove old certificate from config ─► cleanup (preview) ─► cleanup --app
 
 | Component | Version / note |
 |---|---|
-| Java | 21 or newer – SapMachine 21 according to the SAP readme (also tested with 25). `certtool` uses the same Java as the sapccm launcher (`JAVACMD`, `JAVA_HOME`, on macOS `/usr/libexec/java_home`, else `PATH`) and aborts with a clear message if it is older than 21. |
-| Python | 3.9 or newer, standard library only – no additional packages required. |
+| Java | 21 or newer – required by both certtool and sapccm. SapMachine 21 is recommended. |
+| JSON | Gson, included in the release package under `lib/`. |
 | OpenSSL | Optional, recommended. Used for local certificate checks (expiry date, key matches certificate). |
 | SAP CLI | Not included (proprietary SAP software), see [Installing the SAP CLI](#installing-the-sap-cli). |
 | Technical user | For the subscription, with access to the required environments (see below). |
@@ -108,7 +108,7 @@ The tool is installed once; each project only contains its own configuration and
 ```
 
 Put `cxdev-certificates` on your `PATH`, e.g. with a symlink (the script resolves symlinks to find its
-installation):
+installation). Download the ZIP from [GitHub Releases](https://github.com/cxdevtools/certificate-exchange/releases/latest); it contains the application and required libraries in `lib/`:
 
 ```bash
 ln -s ~/tools/certtool/bin/cxdev-certificates ~/.local/bin/cxdev-certificates
@@ -117,8 +117,7 @@ ln -s ~/tools/certtool/bin/cxdev-certificates ~/.local/bin/cxdev-certificates
 On **Windows**, use `bin\cxdev-certificates.bat` and add the `bin` directory of the installation to
 the user `PATH` (symlinks are not needed), e.g. via *Settings → "Edit environment variables for your
 account" → Path → New* (`C:\tools\certtool\bin`). Avoid `setx PATH "%PATH%;…"`: it truncates long
-values and copies the system PATH into the user PATH. The wrapper uses `%PYTHON%` if set, otherwise
-the Python launcher `py -3`, otherwise `python`.
+values and copies the system PATH into the user PATH. The wrapper uses `%JAVA%` if set, otherwise `java` from `PATH`.
 
 Then run it inside a project directory:
 
@@ -245,8 +244,7 @@ The value is **copied 1:1 from the portal dialog**. The portal displays the date
 (`2027-05-11`) are accepted as well.
 
 Should the portal ever provide the date in a different format, it can be set in the configuration,
-e.g. `"credentialsExpiresFormat": "%m/%d/%Y %I:%M:%S %p"`
-([Python strptime syntax](https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes)).
+e.g. `"credentialsExpiresFormat": "M/d/uuuu h:mm:ss a"` (Java date format syntax).
 
 ### How the credentials are passed to the CLI
 
@@ -444,7 +442,7 @@ Every command starts with a **context header**, so it is always clear what the r
 values are never shown):
 
 ```
-SAP Commerce Cloud Certificate Exchange · certtool 0.1.0
+SAP Commerce Cloud Certificate Exchange · certtool 0.2.0
   Command        rollout
   Mode           preview (use --apply to switch the endpoints)
   Configuration  certtool.json
@@ -453,7 +451,7 @@ SAP Commerce Cloud Certificate Exchange · certtool 0.1.0
   Credentials    credentials · secret expires 2027-05-11 (180 days)
   sapccm CLI     tools/sapccm (version 20261022-112509)
   Java           25.0.4 (/Users/me/.sdkman/candidates/java/current/bin/java)
-  Runtime        Python 3.9.6 · Darwin arm64
+  Runtime        Java 25.0.4 · Darwin arm64
   Started        2026-11-12 14:03:11
 ```
 
@@ -582,19 +580,12 @@ usage errors (e.g. missing or expired credentials).
 ```
 ├── bin/cxdev-certificates     # shell entry point: cxdev-certificates <command> [...] (symlink it into the PATH)
 ├── bin/cxdev-certificates.bat # the same for Windows (add bin\ to the PATH)
-├── certtool/                  # Python package
-│   ├── __main__.py            # CLI (argparse)
-│   ├── commands.py            # status / fetch / upload / rollout / cleanup
-│   ├── config.py              # loading & validating the configuration
-│   ├── sapccm.py              # running the sapccm CLI with an isolated credential configuration
-│   ├── tables.py              # parser for the CLI's ASCII tables
-│   ├── output.py              # console tables, context header, colors
-│   ├── usage.py               # help overview and command examples
-│   └── pem.py                 # local certificate checks (openssl)
+├── src/main/java/com/cxdevtools/certtool/ # Java application (Java 21+)
 ├── certificates/              # certificates when this directory is used as project directory (not versioned)
 ├── certtool.example.json      # template for certtool.json in a project directory
 ├── docs/images/               # images used in the documentation
-├── tests/                     # unit tests incl. sapccm mock
+├── test/java/                 # JUnit tests
+├── lib/                       # release JAR and downloaded runtime libraries
 └── tools/                     # place the SAP CLI ZIP here (not versioned)
 ```
 
@@ -634,12 +625,13 @@ The following points still need to be verified against a real environment:
 ## 12. Tests
 
 ```bash
-python3 -m unittest discover -s tests -v
+gradle test
+gradle releaseZip
 ```
 
-The tests run against a mock of the CLI (`tests/mock_sapccm.py`, same table format as `sapccm`) and
-create their test certificates with `openssl`. The environment variable `CERTTOOL_SAPCCM` can be used
-to replace the sapccm command in general.
+Tests are implemented with JUnit 5. `gradle releaseZip` builds a ZIP containing the application JAR,
+runtime libraries and both launchers. Publishing a GitHub release automatically attaches this ZIP as
+`cxdev-certificates-<version>.zip`.
 
 ## License
 

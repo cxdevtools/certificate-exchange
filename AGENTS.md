@@ -19,30 +19,24 @@ when changing behavior.
   so it can be linked into the PATH; `bin/cxdev-certificates.bat` is the Windows wrapper (CRLF, see
   `.gitattributes`) – keep both wrappers in sync. Messages shorten paths relative to the current directory
   (`config.display_path`).
-- Python ≥ 3.9, **standard library only**. Do not add dependencies without agreement.
+- Java ≥ 21. Gson is the only runtime dependency; Gradle copies it to `lib/` for releases.
 - Open source under the Apache License 2.0 (`LICENSE`), copyright cxdevtools.
 
 ## Commands
 
 ```bash
-python3 -m unittest discover -s tests -v   # tests (mock CLI, requires openssl)
-python3 -m certtool --help                 # CLI help
-bin/cxdev-certificates status -v                 # in a project directory with certtool.json (real portal)
+gradle test                               # JUnit tests
+gradle releaseZip                         # release ZIP with runtime libraries
+bin/cxdev-certificates status -v           # in a project directory with certtool.json (real portal)
 ```
 
 ## Architecture
 
 | File | Responsibility |
 |---|---|
-| `certtool/__main__.py` | argparse, error/exit code handling (0 ok, 1 runtime error, 2 config/usage) |
-| `certtool/commands.py` | Business logic of the commands |
-| `certtool/config.py` | Load/validate the JSON configuration, protection list (`fnmatch`), SAP-managed detection |
-| `certtool/sapccm.py` | Runs `sapccm` with a **temporary, isolated** `config.properties`; credentials and expiry check |
-| `certtool/output.py` | Console rendering: bordered tables (Unicode/ASCII), headings, key/value context header, colors (`NO_COLOR`) |
-| `certtool/usage.py` | Help texts: overview without arguments, examples per command (keep in sync with the options) |
-| `certtool/tables.py` | Parser for sapccm ASCII tables (column start = offset of the header) |
-| `certtool/pem.py` | Local certificate checks with `openssl` |
-| `tests/mock_sapccm.py` | Mock of the CLI with the same table format, state kept in JSON |
+| `src/main/java/com/cxdevtools/certtool/CertTool.java` | CLI, config, commands, sapccm integration, output and PEM checks |
+| `test/java/com/cxdevtools/certtool/CertToolTest.java` | JUnit tests |
+| `build.gradle.kts` | Gson/JUnit dependencies and release ZIP packaging |
 
 ## Key facts about the sapccm CLI (from analysing the jar, version 20261022)
 
@@ -57,7 +51,7 @@ bin/cxdev-certificates status -v                 # in a project directory with c
 - `--help` works per sub command (`sapccm certificate create --help`). In zsh, do not pass command
   strings as a single variable (no word splitting).
 - The CLI requires Java ≥ 21 (class files fail on 17). Netty noise is suppressed at the source via
-  `JavaInfo.quiet_options()` (`-Dlogging.level.io.netty=OFF`, `--enable-native-access=ALL-UNNAMED` on 21+,
+  JVM options (`-Dlogging.level.io.netty=OFF`, `--enable-native-access=ALL-UNNAMED` on 21+,
   `--sun-misc-unsafe-memory-access=allow` only on 23+ – it aborts the JVM on 21). Remaining noise is
   filtered from stdout and stderr in `sapccm.py`. sapccm prints errors and the files it reads on stdout.
 - `certificate create` requires `--ca-certificate-path`. The portal verifies the certification path and
@@ -104,10 +98,10 @@ bin/cxdev-certificates status -v                 # in a project directory with c
 - Everything is in English: documentation, code, identifiers, comments and user-facing CLI output
   (tests assert on output strings – update them together).
 - Output structure: context header (`__main__.print_context`) → plan/result tables via
-  `certtool/output.py` → executed sapccm calls → `Details` block for errors → one-line summary. Never print
+  Java CLI context → plan/result tables → executed sapccm calls → `Details` block for errors → one-line summary. Never print
   secret values; long multi-line errors go to `Details`, not into table cells. Tests assert table rows via
   `assertRow`.
 - `upload`, `rollout` and `cleanup` only print their plan without `--apply` and must not run any
   changing sapccm call then. Run changing calls via `SapCcm.run(..., mutating=True)` (always echoed).
-- Cover new features with tests in `tests/test_certtool.py`; extend the mock if needed.
+- Cover new features with tests under `test/java`.
 - Open functional points are listed in the README section "Open points" – update it once clarified.

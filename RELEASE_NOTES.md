@@ -1,4 +1,4 @@
-# certtool 0.1.0 – first release
+# certtool 0.2.0 – Java release
 
 `certtool` automates SSL certificate exchange in **SAP Commerce Cloud (CCv2)**. It drives the official
 SAP Commerce Cloud Management CLI (`sapccm`), so there are no click paths in the Cloud Portal and no
@@ -71,14 +71,17 @@ print the help of the affected command.
 
 ## Requirements
 
-- Python 3.9+ (standard library only)
-- Java 21+ for the SAP CLI. JVM/Netty warnings of the CLI are suppressed.
+- Java 21+ for certtool and the SAP CLI. JVM/Netty warnings of the CLI are suppressed.
+- Gson JSON library, bundled in `lib/` by the release build.
 - OpenSSL (recommended, used for the local checks)
 - SAP Commerce Cloud Management CLI. It is **not included** (proprietary SAP software): place the
   `CXCOMMCLI*.ZIP` in `tools/` and it is extracted automatically on the first run.
 - A technical user of the subscription
 
 ## Getting started
+
+Download and extract the ZIP attached to the GitHub release. It includes the application JAR, Gson,
+and launchers for macOS/Linux and Windows. Java 21+ must be installed; Python is not required.
 
 ```bash
 ln -s /path/to/certtool/bin/cxdev-certificates ~/bin/cxdev-certificates
