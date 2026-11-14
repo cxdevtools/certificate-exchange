@@ -34,8 +34,8 @@ bin/cxdev-certificates status -v           # in a project directory with certtoo
 
 | File | Responsibility |
 |---|---|
-| `src/main/java/com/cxdevtools/certtool/CertTool.java` | CLI, config, commands, sapccm integration, output and PEM checks |
-| `test/java/com/cxdevtools/certtool/CertToolTest.java` | JUnit tests |
+| `src/main/java/me/cxdev/certtool/CertTool.java` | CLI, config, commands, sapccm integration, output and PEM checks |
+| `test/java/me/cxdev/certtool/CertToolTest.java` | JUnit tests |
 | `build.gradle.kts` | Gson/JUnit dependencies and release ZIP packaging |
 
 ## Key facts about the sapccm CLI (from analysing the jar, version 20261022)

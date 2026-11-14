@@ -1,1 +1,1 @@
-rootProject.name = "cxdev-certtool"
+rootProject.name = "certtool"

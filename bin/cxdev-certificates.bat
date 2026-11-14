@@ -8,13 +8,13 @@ if defined JAVA goto run_custom
 if defined JAVA_HOME goto run_java_home
 where java >nul 2>nul
 if errorlevel 1 goto no_java
-java -cp "%ROOT%\lib\*" com.cxdevtools.certtool.CertTool %*
+java -cp "%ROOT%\lib\*" me.cxdev.certtool.CertTool %*
 goto end
 :run_custom
-"%JAVA%" -cp "%ROOT%\lib\*" com.cxdevtools.certtool.CertTool %*
+"%JAVA%" -cp "%ROOT%\lib\*" me.cxdev.certtool.CertTool %*
 goto end
 :run_java_home
-"%JAVA_HOME%\bin\java.exe" -cp "%ROOT%\lib\*" com.cxdevtools.certtool.CertTool %*
+"%JAVA_HOME%\bin\java.exe" -cp "%ROOT%\lib\*" me.cxdev.certtool.CertTool %*
 goto end
 :no_java
 echo ERROR: Java 21 or newer is required. Install it or set JAVA to its executable. 1>&2

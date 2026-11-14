@@ -2,8 +2,8 @@ plugins {
     application
 }
 
-group = "com.cxdevtools"
-version = providers.gradleProperty("releaseVersion").orElse("0.2.0").get()
+group = "me.cxdev"
+version = providers.gradleProperty("releaseVersion").get()
 
 repositories { mavenCentral() }
 
@@ -15,7 +15,7 @@ dependencies {
 
 java { toolchain { languageVersion.set(JavaLanguageVersion.of(21)) } }
 
-application { mainClass.set("com.cxdevtools.certtool.CertTool") }
+application { mainClass.set("me.cxdev.certtool.CertTool") }
 
 sourceSets {
     test { java.setSrcDirs(listOf("test/java")) }
@@ -31,13 +31,16 @@ val copyRuntimeLibraries = tasks.register<Sync>("copyRuntimeLibraries") {
 }
 
 tasks.jar {
-    archiveBaseName.set("cxdev-certificates")
-    manifest { attributes["Main-Class"] = application.mainClass.get() }
+    archiveBaseName.set("certtool")
+    manifest {
+        attributes["Main-Class"] = application.mainClass.get()
+        attributes["Implementation-Version"] = project.version
+    }
 }
 
 tasks.register<Zip>("releaseZip") {
     dependsOn(copyRuntimeLibraries)
-    archiveBaseName.set("cxdev-certificates")
+    archiveBaseName.set("certtool")
     archiveVersion.set(project.version.toString())
     destinationDirectory.set(layout.buildDirectory.dir("release"))
     from(layout.projectDirectory.dir("lib")) { into("lib") }

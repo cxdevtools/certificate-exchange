@@ -1,4 +1,4 @@
-package com.cxdevtools.certtool;
+package me.cxdev.certtool;
 
 import static org.junit.jupiter.api.Assertions.*;
 import java.nio.file.Files;

@@ -25,4 +25,4 @@ JAVA_CMD="${JAVA:-}"
 if [ -z "$JAVA_CMD" ] && [ -n "${JAVA_HOME:-}" ]; then JAVA_CMD="$JAVA_HOME/bin/java"; fi
 JAVA_CMD="${JAVA_CMD:-java}"
 CERTTOOL_HOME="$ROOT" CERTTOOL_PROG="$(basename "$0")" \
-  exec "$JAVA_CMD" -cp "$ROOT/lib/*" com.cxdevtools.certtool.CertTool "$@"
+  exec "$JAVA_CMD" -cp "$ROOT/lib/*" me.cxdev.certtool.CertTool "$@"

@@ -1,4 +1,4 @@
-package com.cxdevtools.certtool;
+package me.cxdev.certtool;
 
 import com.google.gson.*;
 import java.io.*;
@@ -15,7 +15,8 @@ import java.util.zip.ZipInputStream;
 
 /** SAP Commerce Cloud certificate exchange command line tool. */
 public final class CertTool {
-    private static final String VERSION = "0.2.0";
+    private static final String VERSION = Optional.ofNullable(CertTool.class.getPackage().getImplementationVersion())
+            .orElse("development");
     private static final String SAP_MANAGED = "sap-managed", UNMANAGED = "unmanaged";
     private static final Pattern PEM = Pattern.compile("-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", Pattern.DOTALL);
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();

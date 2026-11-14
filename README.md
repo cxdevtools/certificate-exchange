@@ -580,7 +580,7 @@ usage errors (e.g. missing or expired credentials).
 ```
 ├── bin/cxdev-certificates     # shell entry point: cxdev-certificates <command> [...] (symlink it into the PATH)
 ├── bin/cxdev-certificates.bat # the same for Windows (add bin\ to the PATH)
-├── src/main/java/com/cxdevtools/certtool/ # Java application (Java 21+)
+├── src/main/java/me/cxdev/certtool/ # Java application (Java 21+)
 ├── certificates/              # certificates when this directory is used as project directory (not versioned)
 ├── certtool.example.json      # template for certtool.json in a project directory
 ├── docs/images/               # images used in the documentation
@@ -631,7 +631,10 @@ gradle releaseZip
 
 Tests are implemented with JUnit 5. `gradle releaseZip` builds a ZIP containing the application JAR,
 runtime libraries and both launchers. Publishing a GitHub release automatically attaches this ZIP as
-`cxdev-certificates-<version>.zip`.
+`certtool-<version>.zip`.
+
+Set the local build version in `gradle.properties` (`releaseVersion=…`). The release workflow replaces
+it with the published GitHub release tag, so no separate version secret or manual workflow edit is needed.
 
 ## License
 
