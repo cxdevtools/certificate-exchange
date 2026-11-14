@@ -13,6 +13,21 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class TablePrinterTest {
     @Test
+    void separatesEntriesWithoutSplittingMultilineCells() {
+        var output = new ByteArrayOutputStream();
+        var printer = new TablePrinter(new PrintStream(output, true, StandardCharsets.UTF_8), true, false);
+        printer.print(List.of("Certificate"), List.of(
+                List.of(Cell.text("first\ncontinued")),
+                List.of(Cell.text("second"))));
+
+        var lines = output.toString(StandardCharsets.UTF_8).lines().toList();
+        assertEquals(2, lines.stream().filter(line -> line.startsWith("  ├")).count());
+        assertTrue(lines.get(4).contains("continued"));
+        assertTrue(lines.get(5).startsWith("  ├"));
+        assertTrue(lines.get(6).contains("second"));
+    }
+
+    @Test
     void alignsMultilineCellsWithTheHeaderAndBorders() {
         var output = new ByteArrayOutputStream();
         var printer = new TablePrinter(new PrintStream(output, true, StandardCharsets.UTF_8), true, false);

@@ -8,12 +8,53 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.*;
 
 import static me.cxdev.certtool.CertTool.*;
 
 final class SapCcm {
+    static final int MAX_LOCK_ATTEMPTS = 20;
+    private static final int LOCK_RETRY_DELAY_SECONDS = 15;
+    private static final Pattern ENVIRONMENT_LOCK = Pattern.compile(
+            "This environment cannot be edited because another process is modifying it\\.\\s+"
+                    + "Please wait and try again later\\."
+                    + "(?:\\s+Process ID:\\s*([0-9a-fA-F-]{36}))?");
+
     private SapCcm() {}
+
+    @FunctionalInterface
+    interface SapCall {
+        String execute() throws IOException, InterruptedException;
+    }
+
+    @FunctionalInterface
+    interface RetryWait {
+        void waitSeconds(int seconds) throws InterruptedException;
+    }
+
+    static String runWithLockRetry(SapCall call, RetryWait wait, ConsolePrinter printer)
+            throws IOException, InterruptedException {
+        try {
+            for (int attempt = 1; ; attempt++) {
+                try {
+                    return call.execute();
+                } catch (SapException error) {
+                    Matcher lock = ENVIRONMENT_LOCK.matcher(error.output);
+                    if (!Objects.equals(error.code, 10) || !lock.find()) throw error;
+                    if (attempt == MAX_LOCK_ATTEMPTS) {
+                        printer.retryLimitReached(MAX_LOCK_ATTEMPTS);
+                        throw error;
+                    }
+                    printer.retrying(attempt + 1, MAX_LOCK_ATTEMPTS, LOCK_RETRY_DELAY_SECONDS, lock.group(1));
+                    wait.waitSeconds(LOCK_RETRY_DELAY_SECONDS);
+                    printer.retryStarted(attempt + 1, MAX_LOCK_ATTEMPTS);
+                }
+            }
+        } finally {
+            printer.clearRetry();
+        }
+    }
 
     record SapLease(Sap sap, boolean owned) implements AutoCloseable {
         @Override
@@ -48,7 +89,20 @@ final class SapCcm {
         }
         Path tempFile(String name,String content)throws IOException {Path p=temp.resolve(name);Files.writeString(p,content,StandardCharsets.UTF_8);try{Files.setPosixFilePermissions(p,EnumSet.of(PosixFilePermission.OWNER_READ,PosixFilePermission.OWNER_WRITE));}catch(UnsupportedOperationException ignored){}return p;}
         String run(List<String> args,boolean mutating)throws IOException,InterruptedException {
-            printer.sapCall(args, verbose || mutating);
+            if (!mutating) printer.loadingSapCall(args);
+            if (verbose || mutating) printer.sapCall(args);
+            if (!mutating) return runOnce(args);
+            try {
+                String output = runWithLockRetry(() -> runOnce(args), TimeUnit.SECONDS::sleep, printer);
+                printer.stepResult(true);
+                return output;
+            } catch (SapException | IOException error) {
+                printer.stepResult(false);
+                throw error;
+            }
+        }
+
+        private String runOnce(List<String> args) throws IOException, InterruptedException {
             if(temp==null)open(); List<String> cmd=new ArrayList<>(command);cmd.addAll(args);
             ProcessBuilder pb=new ProcessBuilder(cmd).redirectErrorStream(true);Map<String,String> env=pb.environment();
             String opts=env.getOrDefault("JAVA_OPTS",""); opts+=(opts.isBlank()?"":" ")+"-Dlogging.level.io.netty=OFF --enable-native-access=ALL-UNNAMED";
@@ -58,7 +112,6 @@ final class SapCcm {
             env.put("JAVACMD",Path.of(System.getProperty("java.home"),"bin",System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win")?"java.exe":"java").toString());
             Process p=pb.start();String out=filterNoise(new String(p.getInputStream().readAllBytes(),StandardCharsets.UTF_8));int code=p.waitFor();
             if(verbose&&!out.isBlank())printer.sapOutput(out);
-            if(mutating)printer.stepResult(code == 0);
             if(code!=0){Set<String> paths=new HashSet<>();for(String arg:args)if(arg.startsWith("--")&&arg.endsWith(".pem")&&arg.contains("="))paths.add(arg.substring(arg.indexOf('=')+1));
                 String details=out.lines().filter(line->!line.isBlank()&&!paths.contains(line.trim())).reduce((a,b)->a+"\n"+b).orElse("(no output)");if(details.matches("(?s).*(\\b401\\b|\\b403\\b|Authorization Failed).*"))details+="\nHint: check environment access and the technical user's role.";throw new SapException("sapccm "+String.join(" ",args)+" failed (exit code "+code+"):\n"+indent(details),details,code);}
             return out;
@@ -111,7 +164,7 @@ final class SapCcm {
     }
     private static String host(String value){try{String u=value.contains("://")?value:"//"+value;return Optional.ofNullable(URI.create(u).getHost()).orElse("").toLowerCase(Locale.ROOT);}catch(Exception e){return "";}}
     static SapLease lease(Config c,Sap base,Environment env)throws IOException {
-        Credentials user=credentials(c,env);if(user.id().equals(base.credentials.id()))return new SapLease(base,false);
+        Credentials user=credentials(c,env,base.printer::warning);if(user.id().equals(base.credentials.id()))return new SapLease(base,false);
         Sap separate=new Sap(base.command,user,c.subscription(),base.verbose,base.printer);
         return new SapLease(separate,true);
     }

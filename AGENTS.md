@@ -103,11 +103,12 @@ bin/cxdev-certificates status -v           # in a project directory with certtoo
 
 - Everything is in English: documentation, code, identifiers, comments and user-facing CLI output
   (tests assert on output strings – update them together).
-- Output structure: context header → plan → read steps → plan/result tables → executed changes →
+- Output structure: context header → plan/result tables → executed changes and retry progress →
   `Details` block for errors → one-line summary. Never print
   secret values; long multi-line errors go to `Details`, not into table cells. Tests assert table rows via
   `assertRow`.
 - `upload`, `rollout` and `cleanup` only print their plan without `--apply` and must not run any
-  changing sapccm call then. Run changing calls via `SapCcm.run(..., mutating=True)` (always echoed).
+  changing sapccm call then. Run changing calls via `SapCcm.run(..., true)`. On rollout, the action
+  cell shows progress and the detailed execution trace is available with `--verbose`.
 - Cover new features with tests under `test/java`.
 - Open functional points are listed in the README section "Open points" – update it once clarified.

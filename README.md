@@ -460,27 +460,39 @@ SAP Commerce Cloud Certificate Exchange · certtool 0.2.0
   Started        2026-11-12 14:03:11
 ```
 
-Every command prints a **Plan** before contacting SAP, then shows the read steps under **Checking**.
-The tables show the results of those checks. Without `--apply`, commands that can make changes
-stop at the preview. With `--apply`, the individual changes and their results follow under
-**Executing**. A **Details** block lists any errors before the summary.
+In a supported interactive terminal, every command shows its current loading step on one line,
+then replaces it with the plan or result tables. All tables use a divider between entries. Use
+`--verbose` to see the read requests and their output.
+Without `--apply`, commands that can make changes stop at the preview. With
+`--apply`, the rollout updates its table while other commands show changes under **Executing**.
+A **Details** block lists errors before the summary.
+
+If a SAP change returns exit code 10 with the environment lock message, certtool waits 15 seconds
+before the next attempt. Each change gets up to 20 attempts, including the first call.
+
+`rollout` groups current and target hostnames under **Domain** and the corresponding certificates
+under **Certificate**. During `rollout --apply`, the **Action** cell shows a
+spinner, elapsed seconds, and the attempt number. While SAP holds an environment lock, the status
+shows the next attempt and counts down to it. Other outputs show a static plan followed by a
+result table. Use `--verbose` to include SAP calls, retries, and complete update errors after the table.
 
 ```
-Rollout plan - environment d1 (demo) (preview)
-  ┌──────────┬─────────────────────────────────────────────────────┬─────────────────────────────┬──────────────┐
-  │ Endpoint │ Current certificate                                 │ Target certificate          │ Action       │
-  ├──────────┼─────────────────────────────────────────────────────┼─────────────────────────────┼──────────────┤
-  │ jsapps   │ d1-public - 2027-02-05 (Let's Encrypt) [4irgvwbvgw] │ local.cxdev.me [7oq81mp8jq] │ would switch │
-  └──────────┴─────────────────────────────────────────────────────┴─────────────────────────────┴──────────────┘
+Rollout plan - Environment d1 (demo) (preview)
+  ┌──────────┬─────────────────────────────┬───────────────────────┬──────────────────────────┐
+  │ Endpoint │ Domain                      │ Certificate           │ Action                   │
+  ├──────────┼─────────────────────────────┼───────────────────────┼──────────────────────────┤
+  │ jsapps   │ Current: shop.example.com   │ Current: old [c1]     │ would switch certificate │
+  │          │ Target: shop.example.com    │ Target: new [c2]      │                          │
+  └──────────┴─────────────────────────────┴───────────────────────┴──────────────────────────┘
 
 1 endpoint(s) would be switched. Use 'rollout d1 --apply' to switch them.
 ```
 
 `status` prints three kinds of tables: the configured certificates (local check and upload state),
-all certificates of the subscription, and per environment the certificate **actually assigned** to
-every endpoint compared with the configured target:
+all certificates of the subscription, and an endpoint table for each environment. The endpoint
+table compares the current and target domain and certificate.
 
-| State | Meaning |
+| Status | Meaning |
 |---|---|
 | `OK - target in place` | The endpoint already uses the configured target certificate. |
 | `rollout pending` | The endpoint uses a different certificate – `rollout` would switch it. |
@@ -488,7 +500,7 @@ every endpoint compared with the configured target:
 | `not configured` | The endpoint exists in the portal but is not configured; for information only. |
 
 Each environment is queried with its own credentials (environment scope first, subscription scope as
-fallback); the table heading shows which ones. `status` reads every endpoint individually
+fallback). `status` reads every endpoint individually
 (`sapccm endpoint show`); since every sapccm call starts a JVM, this takes a few seconds per endpoint.
 Use `status <environment>` to restrict it to one environment. It exits with `1` if any problem was
 found, otherwise with `0`.

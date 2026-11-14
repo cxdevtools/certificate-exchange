@@ -15,7 +15,7 @@ import static me.cxdev.certtool.CommandReport.Tone.*;
 final class CertificateCommands {
     private CertificateCommands() {}
 
-    static CommandReport upload(Config config, Sap sap, Args args) throws Exception {
+    static CommandReport upload(Config config, Sap sap, Args args, ConsolePrinter printer) throws Exception {
         List<String> names = args.certificates.isEmpty()
                 ? List.copyOf(config.certificates().keySet()) : args.certificates;
         List<String> unknown = names.stream().filter(name -> !config.certificates().containsKey(name)).toList();
@@ -28,10 +28,11 @@ final class CertificateCommands {
         List<String> problems = new ArrayList<>();
         int blocked = 0;
 
+        if (!names.isEmpty()) printer.loading("Checking local certificates...");
         for (String name : new LinkedHashSet<>(names)) {
             Certificate cert = config.certificates().get(name);
             List<RemoteCert> matches = named(remote, name);
-            CertificateCheck check = checkCertificate(cert);
+            CertificateCheck check = checkCertificate(cert, printer::warning);
             Cell action;
             if (!matches.isEmpty()) {
                 String codes = String.join(", ", matches.stream().map(RemoteCert::code).toList());
@@ -49,7 +50,7 @@ final class CertificateCommands {
 
         Table table = new Table("Upload plan" + preview(args), List.of("Certificate", "Valid until", "Action"), rows);
         if (args.apply && !pending.isEmpty()) {
-            return new CommandReport(List.of(table), null, printer -> {
+            return new CommandReport(List.of(table), null, ignored -> {
                 int uploaded = 0;
                 for (Certificate cert : pending) {
                     try {
@@ -84,7 +85,7 @@ final class CertificateCommands {
                 "--certificate-path=" + leaf, "--certificate-key-path=" + cert.key(), "--ca-certificate-path=" + chain), true);
     }
 
-    private record Switch(String endpoint, String code, String domain) {
+    private record Switch(int row, String endpoint, String code, String domain) {
         List<String> arguments(String subscription, String environment) {
             List<String> args = new ArrayList<>(List.of("endpoint", "update", "--subscription-code=" + subscription,
                     "--environment-code=" + environment, "--code=" + endpoint, "--ssl-certificate=" + code));
@@ -119,7 +120,7 @@ final class CertificateCommands {
             String targetDomain = configuredDomain == null ? currentDomain : configuredDomain;
             boolean domainChanged = configuredDomain != null && !configuredDomain.equals(currentDomain);
             if (name.equals(UNMANAGED)) {
-                rows.add(rolloutRow(endpoint, currentDomain, targetDomain, "-", name, new Cell("skip - unmanaged", DIM)));
+                rows.add(endpointRow(endpoint, currentDomain, targetDomain, "-", name, new Cell("skip - unmanaged", DIM)));
                 continue;
             }
             Target target = target(name, env, all);
@@ -147,7 +148,7 @@ final class CertificateCommands {
                 } catch (IOException | SapException error) {
                     problems.add(endpoint + ": " + error.getMessage());
                     readFailed = true;
-                    rows.add(rolloutRow(endpoint, currentDomain, targetDomain, "?", target.text(),
+                    rows.add(endpointRow(endpoint, currentDomain, targetDomain, "?", target.text(),
                             new Cell("could not read endpoint", ERROR)));
                     continue;
                 }
@@ -155,7 +156,7 @@ final class CertificateCommands {
                 if (!domainChanged && target.accepted().contains(value)) {
                     action = new Cell("unchanged - already in place", SUCCESS);
                 } else {
-                    pending.add(new Switch(endpoint, certificateCode, domainChanged ? targetDomain : null));
+                    pending.add(new Switch(rows.size(), endpoint, certificateCode, domainChanged ? targetDomain : null));
                     String change = domainChanged
                             ? (value.equals(certificateCode) || value.equals(target.candidates().getFirst().name())
                             ? "change domain" : "change domain and certificate")
@@ -163,25 +164,34 @@ final class CertificateCommands {
                     action = new Cell(args.apply ? change : "would " + change, WARNING);
                 }
             }
-            rows.add(rolloutRow(endpoint, currentDomain, targetDomain, current, target.text(), action));
+            rows.add(endpointRow(endpoint, currentDomain, targetDomain, current, target.text(), action));
         }
         Table table = new Table("Rollout plan - " + environmentTitle(env) + preview(args),
-                List.of("Endpoint", "Domain", "Current certificate", "Target certificate", "Action"), rows);
+                endpointHeaders("Action"), rows);
         if (readFailed) {
             return finished(List.of(table), problems, "Rollout blocked: one or more endpoints could not be read.");
         }
         if (args.apply && !pending.isEmpty()) {
             return new CommandReport(List.of(table), null, printer -> {
                 int switched = 0;
+                int failed = 0;
                 for (Switch item : pending) {
+                    boolean success = false;
+                    printer.beginRolloutStep(item.row());
                     try {
                         sap.run(item.arguments(sap.subscription, env.code()), true);
+                        success = true;
                         switched++;
                     } catch (IOException | SapException error) {
-                        problems.add(item.endpoint() + ": update failed\n" + error.getMessage());
+                        failed++;
+                        if (args.verbose) problems.add(item.endpoint() + ": update failed\n" + error.getMessage());
+                    } finally {
+                        printer.endRolloutStep(success);
                     }
                 }
-                return withErrorCount(problems, "Rollout finished: " + switched + " endpoint(s) switched");
+                String summary = "Rollout finished: " + switched + " endpoint(s) switched"
+                        + (failed == 0 ? "." : ", " + failed + " failed (use --verbose for details).");
+                return new Outcome(failed == 0 && problems.isEmpty() ? 0 : 1, problems, summary);
             });
         }
         String summary = args.apply ? "Rollout finished: 0 endpoint(s) switched."
@@ -218,11 +228,19 @@ final class CertificateCommands {
         return domain.length() <= 253 && domain.matches(label + "(?:\\." + label + ")+");
     }
 
-    private static List<Cell> rolloutRow(String endpoint, String currentDomain, String targetDomain,
-                                         String current, String target, Cell action) {
-        String domain = currentDomain.isBlank() ? "-" : currentDomain;
-        if (!targetDomain.equals(currentDomain)) domain += "\n-> " + targetDomain;
-        return List.of(Cell.text(endpoint), Cell.text(domain), Cell.text(current), Cell.text(target), action);
+    private static List<String> endpointHeaders(String lastColumn) {
+        return List.of("Endpoint", "Domain", "Certificate", lastColumn);
+    }
+
+    private static List<Cell> endpointRow(String endpoint, String currentDomain, String targetDomain,
+                                          String current, String target, Cell action) {
+        return List.of(Cell.text(endpoint), Cell.text(currentAndTarget(currentDomain, targetDomain)),
+                Cell.text(currentAndTarget(current, target)), action);
+    }
+
+    private static String currentAndTarget(String current, String target) {
+        return "Current: " + (current.isBlank() ? "-" : current)
+                + "\nTarget: " + (target.isBlank() ? "-" : target);
     }
 
     static CommandReport cleanup(Config config, Sap sap, Args args) throws Exception {
@@ -259,14 +277,15 @@ final class CertificateCommands {
         });
     }
 
-    static CommandReport status(Config config, Sap sap, Environment only) throws Exception {
+    static CommandReport status(Config config, Sap sap, Environment only, ConsolePrinter printer) throws Exception {
         List<RemoteCert> all = remote(sap);
         List<Table> tables = new ArrayList<>();
         List<String> problems = new ArrayList<>();
         List<List<Cell>> local = new ArrayList<>();
         int issues = 0;
+        if (!config.certificates().isEmpty()) printer.loading("Checking local certificates...");
         for (Certificate cert : config.certificates().values()) {
-            CertificateCheck check = checkCertificate(cert);
+            CertificateCheck check = checkCertificate(cert, printer::warning);
             List<RemoteCert> matches = named(all, cert.name());
             boolean ok = check.errors().isEmpty();
             if (!ok) {
@@ -289,7 +308,6 @@ final class CertificateCommands {
             String title = environmentTitle(env);
             try (SapLease lease = lease(config, sap, env)) {
                 Sap session = lease.sap();
-                title += " - credentials " + session.credentials.source();
                 Map<String, String> live = endpoints(session, env.code());
                 Set<String> codes = new LinkedHashSet<>(env.endpoints().keySet());
                 codes.addAll(live.keySet());
@@ -301,9 +319,9 @@ final class CertificateCommands {
             } catch (IOException | SapException | ConfigException error) {
                 issues++;
                 problems.add(env.code() + ": " + error.getMessage());
-                rows.add(row("-", "-", "-", new Cell("could not read environment", ERROR)));
+                rows.add(endpointRow("-", "-", "-", "-", "-", new Cell("could not read environment", ERROR)));
             }
-            tables.add(new Table(title, List.of("Endpoint", "Current certificate", "Target certificate", "State"), rows));
+            tables.add(new Table(title, endpointHeaders("Status"), rows));
         }
         String summary = issues == 0 ? "Status: no problems found." : "Status: " + issues + " problem(s) found.";
         return new CommandReport(tables, new Outcome(issues == 0 ? 0 : 1, problems, summary), null);
@@ -314,11 +332,14 @@ final class CertificateCommands {
     private static EndpointStatus endpointStatus(Config config, Sap sap, Environment env, List<RemoteCert> all,
                                              Map<String, String> live, String endpoint, List<String> problems) throws Exception {
         String name = env.endpoints().get(endpoint);
+        String domain = live.getOrDefault(endpoint, "");
+        String targetDomain = env.domains().getOrDefault(endpoint, name == null ? "" : domain);
         String targetText = name == null ? "-" : name;
         Target target = name == null || name.equals(UNMANAGED) ? null : target(name, env, all);
         if (target != null) targetText = target.text();
         if (!live.containsKey(endpoint)) {
-            return new EndpointStatus(row(endpoint, "-", targetText, new Cell("endpoint does not exist", ERROR)), true);
+            return new EndpointStatus(
+                    endpointRow(endpoint, domain, targetDomain, "-", targetText, new Cell("endpoint does not exist", ERROR)), true);
         }
 
         String value;
@@ -326,12 +347,12 @@ final class CertificateCommands {
             value = showEndpoint(sap, env.code(), endpoint).getOrDefault("SSL CERTIFICATE", "");
         } catch (IOException | SapException error) {
             problems.add(env.code() + "/" + endpoint + ": " + error.getMessage());
-            return new EndpointStatus(row(endpoint, "?", targetText, new Cell("could not read endpoint", ERROR)), true);
+            return new EndpointStatus(
+                    endpointRow(endpoint, domain, targetDomain, "?", targetText, new Cell("could not read endpoint", ERROR)), true);
         }
         Cell state = new Cell("not configured", DIM);
         boolean problem = false;
         if (name != null) {
-            String domain = live.get(endpoint);
             String drift = domainDrift(env, endpoint, domain);
             if (drift != null) {
                 problems.add(env.code() + "/" + endpoint + ": " + drift);
@@ -355,7 +376,7 @@ final class CertificateCommands {
                 }
             }
         }
-        return new EndpointStatus(row(endpoint, describe(value, all), targetText, state), problem);
+        return new EndpointStatus(endpointRow(endpoint, domain, targetDomain, describe(value, all), targetText, state), problem);
     }
 
     static CommandReport fetch(Config config, Sap sap, Args args) throws Exception {
@@ -461,10 +482,6 @@ final class CertificateCommands {
         return List.of(Cell.text(cert.name()), Cell.text(cert.code()), new Cell(state, tone),
                 Cell.text(cert.endpoints() < 0 ? "?" : Integer.toString(cert.endpoints())),
                 Cell.text(date(cert.expiration())));
-    }
-
-    private static List<Cell> row(String endpoint, String current, String target, Cell action) {
-        return List.of(Cell.text(endpoint), Cell.text(current), Cell.text(target), action);
     }
 
     private static String date(String value) {

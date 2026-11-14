@@ -8,6 +8,7 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.time.*;
 import java.time.format.*;
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.regex.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -50,30 +51,52 @@ public final class CertTool {
         try {
             Args a = Args.parse(argv);
             if (a.help) { help(prog, a.command); return 0; }
-            Config c = loadConfig(a.config);
-            Environment env = a.environment == null || a.command.equals("fetch") ? null : c.environment(a.environment);
-            Credentials credentials = credentials(c, a.command.equals("rollout") ? env : null);
+            boolean rollout = a.command.equals("rollout");
+            ConsolePrinter printer = ConsolePrinter.standard(a.verbose);
+            Config c;
+            Environment env;
+            printer.startLoading("Loading configuration...", false);
+            try {
+                c = loadConfig(a.config);
+                env = a.environment == null || a.command.equals("fetch") ? null : c.environment(a.environment);
+            } finally {
+                printer.clearLoading();
+            }
+            Credentials credentials = credentials(c, rollout ? env : null);
             warnFileMode(c.path);
-            ConsolePrinter printer = ConsolePrinter.standard();
             printContext(printer, a, c, env, credentials);
-            printer.plan(a.command, a.apply);
             List<String> sapccm = locateSapccm(c.sapccmHome, c.zipDir);
             try (Sap session = new Sap(sapccm, credentials, c.subscription, a.verbose, printer)) {
-                CommandReport report = switch (a.command) {
-                    case "upload" -> CertificateCommands.upload(c, session, a);
-                    case "rollout" -> CertificateCommands.rollout(c, session, env, a);
-                    case "cleanup" -> CertificateCommands.cleanup(c, session, a);
-                    case "status" -> CertificateCommands.status(c, session, env);
-                    case "fetch" -> CertificateCommands.fetch(c, session, a);
-                    default -> throw new ConfigException("Unknown command: " + a.command);
-                };
-                for (var table : report.tables()) {
-                    printer.table(table.title(), table.headers(), table.rows());
+                CommandReport report;
+                printer.startLoading("Preparing " + a.command + "...", true);
+                try {
+                    report = switch (a.command) {
+                        case "upload" -> CertificateCommands.upload(c, session, a, printer);
+                        case "rollout" -> CertificateCommands.rollout(c, session, env, a);
+                        case "cleanup" -> CertificateCommands.cleanup(c, session, a);
+                        case "status" -> CertificateCommands.status(c, session, env, printer);
+                        case "fetch" -> CertificateCommands.fetch(c, session, a);
+                        default -> throw new ConfigException("Unknown command: " + a.command);
+                    };
+                } finally {
+                    printer.clearLoading();
                 }
                 var outcome = report.outcome();
-                if (report.apply() != null) {
-                    printer.heading("Executing");
-                    outcome = report.apply().execute(printer);
+                if (rollout && report.apply() != null) {
+                    printer.startRollout(report.tables().getFirst());
+                    try {
+                        outcome = report.apply().execute(printer);
+                    } finally {
+                        printer.finishRollout();
+                    }
+                } else {
+                    for (var table : report.tables()) {
+                        printer.table(table);
+                    }
+                    if (report.apply() != null) {
+                        printer.heading("Executing");
+                        outcome = report.apply().execute(printer);
+                    }
                 }
                 printer.finish(outcome.problems(), outcome.summary(), outcome.exitCode() == 0);
                 return outcome.exitCode();
@@ -159,6 +182,9 @@ public final class CertTool {
         return out;
     }
     static Credentials credentials(Config c, Environment env) {
+        return credentials(c, env, System.err::println);
+    }
+    static Credentials credentials(Config c, Environment env, Consumer<String> warning) {
         Map<String,String> block=env!=null && env.credentials.containsKey("clientId")?env.credentials:c.credentials;
         String source=block==envCredentials(env)?"environments."+env.key+".credentials":"credentials";
         if (env!=null && !env.credentials.containsKey("clientId") && (env.credentials.containsKey("clientSecret")||env.credentials.containsKey("clientExpires"))) throw new ConfigException("environments."+env.key+".credentials defines clientSecret/clientExpires but no clientId; credentials of different technical users are never mixed.");
@@ -166,7 +192,7 @@ public final class CertTool {
         for(String f:List.of("clientId","clientSecret")) if(!block.containsKey(f)) throw new ConfigException("Technical user credentials are missing in "+c.path.getFileName()+": "+source+"."+f);
         if(token.isBlank()) throw new ConfigException("Technical user credentials are missing in "+c.path.getFileName()+": tokenEndpoint");
         LocalDateTime expiry=null; String raw=block.get("clientExpires");
-        if(raw!=null&&!raw.isBlank()) { expiry=parseExpiry(raw,c.expiryFormat); if(!expiry.isAfter(LocalDateTime.now())) throw new ConfigException("The client secret has expired ("+source+".clientExpires). Create a new secret and update the configuration."); if(Duration.between(LocalDateTime.now(),expiry).toDays()<14) System.err.println("WARNING: The client secret expires soon ("+expiry.toLocalDate()+")."); }
+        if(raw!=null&&!raw.isBlank()) { expiry=parseExpiry(raw,c.expiryFormat); if(!expiry.isAfter(LocalDateTime.now())) throw new ConfigException("The client secret has expired ("+source+".clientExpires). Create a new secret and update the configuration."); if(Duration.between(LocalDateTime.now(),expiry).toDays()<14) warning.accept("WARNING: The client secret expires soon ("+expiry.toLocalDate()+")."); }
         return new Credentials(block.get("clientId"),block.get("clientSecret"),token,expiry,source);
     }
     private static Map<String,String> envCredentials(Environment e){return e==null?Map.of():e.credentials;}

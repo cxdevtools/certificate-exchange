@@ -10,6 +10,7 @@ import java.security.cert.X509Certificate;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.regex.*;
 import javax.naming.InvalidNameException;
 import javax.naming.ldap.LdapName;
@@ -45,7 +46,7 @@ final class CertificateFiles {
         }
     }
 
-    static CertificateCheck checkCertificate(Certificate c) {
+    static CertificateCheck checkCertificate(Certificate c, Consumer<String> warning) {
         String expires = "";
         List<String> errors=new ArrayList<>();if(!c.name().matches("[\\x20-\\x7E]+"))errors.add("Name must contain printable ASCII only.");
         for(var entry:List.of(Map.entry("Certificate",c.certificate()),Map.entry("Private Key",c.key())))if(!Files.isRegularFile(entry.getValue()))errors.add(entry.getKey()+" missing: "+entry.getValue());
@@ -68,7 +69,7 @@ final class CertificateFiles {
                 if(!Files.exists(c.chain())&&!bundled&&!subject.isBlank()&&!subject.equals(issuer))errors.add("CA chain missing: add the intermediate certificates to "+c.chain()+" or append them to the certificate file (full chain, leaf first).");
             }
         }catch(Exception e){errors.add("OpenSSL check failed: "+e.getMessage());}
-        else if(errors.isEmpty())System.err.println("WARNING: openssl not found - certificate contents were not checked.");
+        else if(errors.isEmpty())warning.accept("WARNING: openssl not found - certificate contents were not checked.");
         return new CertificateCheck(expires, errors);
     }
     private static String openssl(String...args)throws IOException,InterruptedException{
