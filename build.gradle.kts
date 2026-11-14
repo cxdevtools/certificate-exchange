@@ -11,6 +11,7 @@ dependencies {
     implementation("com.google.code.gson:gson:2.15.0")
     testImplementation(platform("org.junit:junit-bom:5.14.2"))
     testImplementation("org.junit.jupiter:junit-jupiter")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 java { toolchain { languageVersion.set(JavaLanguageVersion.of(21)) } }
