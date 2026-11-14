@@ -35,7 +35,10 @@ bin/cxdev-certificates status -v           # in a project directory with certtoo
 
 | File | Responsibility |
 |---|---|
-| `src/main/java/me/cxdev/certtool/CertTool.java` | CLI, config, commands, sapccm integration, output and PEM checks |
+| `CertTool.java` | CLI entry point, configuration and dispatch |
+| `CertificateCommands.java` / `CommandReport.java` | Command logic, plan tables and deferred apply actions |
+| `ConsolePrinter.java` / `TablePrinter.java` | Console sections, table layout and terminal styling |
+| `SapCcm.java` / `CertificateFiles.java` | SAP CLI communication and local certificate checks |
 | `test/java/me/cxdev/certtool/CertToolTest.java` | JUnit tests |
 | `build.gradle.kts` | Gson/JUnit dependencies and release ZIP packaging |
 
@@ -48,7 +51,8 @@ bin/cxdev-certificates status -v           # in a project directory with certtoo
   `certificate list`: `CERTIFICATE CODE, NAME, ISSUER, DOMAINS COUNT, EXPIRATION DATE, DESCRIPTION,
   ENDPOINTS COUNT`. `endpoint show`: `PROPERTY / VALUE` table, relevant row `SSL CERTIFICATE`. `endpoint list` shows the
   endpoint domain in column `URL`. The portal rejects certificates that do not cover the endpoint domain;
-  `commands.domain_mismatch` checks this locally. Never change endpoint domains (`--domain-name`).
+  For a domain change, verify coverage against `certificate show` and the local leaf PEM for a
+  custom certificate. Send `--domain-name` and `--ssl-certificate` in the same update.
 - `--help` works per sub command (`sapccm certificate create --help`). In zsh, do not pass command
   strings as a single variable (no word splitting).
 - The CLI requires Java ≥ 21 (class files fail on 17). Netty noise is suppressed at the source via
@@ -88,7 +92,8 @@ bin/cxdev-certificates status -v           # in a project directory with certtoo
   depend on the configuration.
 - Endpoint entries: short form `"<code>": "<target>"` or long form `{"domain", "certificate"}`; targets are a
   configured certificate, `"sap-managed"` or `"unmanaged"` (`config.RESERVED_TARGETS`, ignored by rollout).
-  A configured `domain` must equal the portal domain (`commands.domain_drift`). `fetch` only adds missing
+  A configured `domain` is the desired hostname. Only `rollout --apply` can change it, after verifying
+  certificate coverage. `fetch` only adds missing
   endpoints/environments and must never change existing entries.
 - The endpoint target `"sap-managed"` (`config.SAP_MANAGED_TARGET`) selects the SAP-managed certificate of
   the environment (`commands.resolve_target`): rollout picks the newest, any SAP-managed certificate of
@@ -98,8 +103,8 @@ bin/cxdev-certificates status -v           # in a project directory with certtoo
 
 - Everything is in English: documentation, code, identifiers, comments and user-facing CLI output
   (tests assert on output strings – update them together).
-- Output structure: context header (`__main__.print_context`) → plan/result tables via
-  Java CLI context → plan/result tables → executed sapccm calls → `Details` block for errors → one-line summary. Never print
+- Output structure: context header → plan → read steps → plan/result tables → executed changes →
+  `Details` block for errors → one-line summary. Never print
   secret values; long multi-line errors go to `Details`, not into table cells. Tests assert table rows via
   `assertRow`.
 - `upload`, `rollout` and `cleanup` only print their plan without `--apply` and must not run any

@@ -9,6 +9,26 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class CertToolTest {
+    @Test void rolloutDomainCheckRequiresVerifiedCoverage() {
+        String output = """
+                CERTIFICATE CODE  c123
+                NAME              local.cxdev.me
+                ISSUER            Example CA
+                DOMAINS           local.cxdev.me | *.example.com | shop.example.org
+                EXPIRATION DATE   2027-06-01T08:00:00Z
+                DESCRIPTION       Example
+                """;
+        List<String> names = SapCcm.parseCertificateDomains(output);
+        assertEquals(List.of("local.cxdev.me", "*.example.com", "shop.example.org"), names);
+        assertNull(CertificateCommands.coverageProblem("local.cxdev.me", names, "uploaded"));
+        assertNull(CertificateCommands.coverageProblem("shop.example.com", names, "uploaded"));
+        assertNull(CertificateCommands.coverageProblem("shop.example.org", names, "uploaded"));
+        assertNotNull(CertificateCommands.coverageProblem("deep.shop.example.com", names, "uploaded"));
+        assertNotNull(CertificateCommands.coverageProblem("example.com", names, "uploaded"));
+        assertNotNull(CertificateCommands.coverageProblem("shop.example.com", List.of(), "uploaded"));
+        assertEquals(List.of(), SapCcm.parseCertificateDomains("DOMAINS COUNT  3\nDOMAINS  \n"));
+    }
+
     @Test void prefersLocalSapccmArchive(@TempDir Path root) throws Exception {
         Path tools = Files.createDirectories(root.resolve("tools"));
         Path local = Files.createFile(tools.resolve("CXCOMMCLI01.ZIP"));
@@ -32,7 +52,7 @@ class CertToolTest {
     @Test void parsesSapAsciiTablesWithSpacedValues() {
         String text = "CERTIFICATE CODE  NAME          ISSUER            ENDPOINTS COUNT\n"
                 + "abc123            my cert name  Let's Encrypt R3  2\n";
-        List<Map<String,String>> rows = CertTool.parseTable(text, "CERTIFICATE CODE");
+        List<Map<String,String>> rows = SapCcm.parseTable(text, "CERTIFICATE CODE");
         assertNotNull(rows);
         assertEquals("my cert name", rows.get(0).get("NAME"));
         assertEquals("Let's Encrypt R3", rows.get(0).get("ISSUER"));
@@ -40,7 +60,7 @@ class CertToolTest {
     }
 
     @Test void parsesEndpointPropertyTable() {
-        assertEquals("abc123", CertTool.details("PROPERTY         VALUE\nSSL CERTIFICATE  abc123\n")
+        assertEquals("abc123", SapCcm.details("PROPERTY         VALUE\nSSL CERTIFICATE  abc123\n")
                 .get("SSL CERTIFICATE"));
     }
 
@@ -90,7 +110,7 @@ class CertToolTest {
                  "cleanup":{"protectedCertificates":["legacy-[ab]*"]}}
                 """);
         CertTool.Config config=CertTool.loadConfig(file.toString());
-        assertEquals("protected",CertTool.classify(config,new CertTool.RemoteCert("x","legacy-a-old","issuer","",0),true));
-        assertEquals("SAP-managed",CertTool.classify(config,new CertTool.RemoteCert("y","d1-public - 2027-01-01 (Let's Encrypt)","issuer","",0),true));
+        assertEquals("protected",CertTool.classify(config,new SapCcm.RemoteCert("x","legacy-a-old","issuer","",0),true));
+        assertEquals("SAP-managed",CertTool.classify(config,new SapCcm.RemoteCert("y","d1-public - 2027-01-01 (Let's Encrypt)","issuer","",0),true));
     }
 }

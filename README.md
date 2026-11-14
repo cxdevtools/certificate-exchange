@@ -386,7 +386,7 @@ listed in `.gitignore`. A different file can be passed with `--config <path>`.
 | `environments.<key>.credentials` | no | Separate technical user for this environment (same fields as `credentials`). |
 | `environments.<key>.endpoints` | – | Mapping **endpoint code → target**. Short form: `"<endpoint>": "<target>"`. Long form: `"<endpoint>": {"domain": "...", "certificate": "<target>"}`. Endpoint codes are shown in the Cloud Portal and by `sapccm endpoint list`; `fetch` fills them in. |
 | `…endpoints.<code>.certificate` | – | Target: a name from `certificates`, `"sap-managed"` (SAP-managed Let's Encrypt certificate of the environment, see [SAP-managed certificates](#sap-managed-certificates)) or `"unmanaged"` (not managed by certtool, ignored by `rollout`). Missing in the long form = `unmanaged`. |
-| `…endpoints.<code>.domain` | no | Expected domain of the endpoint. `rollout` and `status` compare it with the domain in the portal (`domain differs from configuration`); it is also used for the certificate domain check if the portal does not show a domain. |
+| `…endpoints.<code>.domain` | no | Desired hostname. `status` reports differences. `rollout` previews a domain change and applies it with `--apply` after verifying certificate coverage. Omit it to keep the current domain. |
 | `cleanup.protectedCertificates` | no | Certificates the cleanup **never** deletes – by name or certificate code, wildcards `*`/`?` allowed. SAP-managed certificates are additionally always protected (see below). |
 
 `certificatesPath` is resolved relative to the configuration file, `sapccmHome`/`sapccmZipDir` relative to the certtool installation.
@@ -460,9 +460,10 @@ SAP Commerce Cloud Certificate Exchange · certtool 0.2.0
   Started        2026-11-12 14:03:11
 ```
 
-Results are shown as tables. Commands that change something first print a **plan table**. Without
-`--apply` they stop there (preview); with `--apply` the executed `sapccm` calls follow. An optional
-**Details** block for errors and a one-line summary close the output:
+Every command prints a **Plan** before contacting SAP, then shows the read steps under **Checking**.
+The tables show the results of those checks. Without `--apply`, commands that can make changes
+stop at the preview. With `--apply`, the individual changes and their results follow under
+**Executing**. A **Details** block lists any errors before the summary.
 
 ```
 Rollout plan - environment d1 (demo) (preview)
@@ -495,6 +496,10 @@ found, otherwise with `0`.
 Tables use box drawing characters if the terminal supports UTF-8 and plain ASCII otherwise. Colors are
 only used in interactive terminals; set `NO_COLOR=1` to disable them.
 
+`upload` shows local validity and the planned action. `cleanup` adds the number of assigned
+endpoints and the expiry date. `fetch` lists the environment, endpoint, domain, certificate target, and
+whether the entry will be added or was already configured.
+
 ### Rules in detail
 
 **Upload** – For every certificate in `certificates`: if a certificate with the same name exists in
@@ -503,8 +508,10 @@ the subscription, it is skipped. Otherwise it is checked locally and uploaded wi
 
 **Rollout** – For every endpoint of the environment: the target certificate must be uploaded and its
 name must be unique, the endpoint must exist in the environment, and the certificate must cover the
-endpoint's domain. If the target certificate is already assigned, nothing happens; otherwise
-`sapccm endpoint update --ssl-certificate=<code>`.
+endpoint's target domain. If the configured domain differs from the portal domain, the plan shows
+both hostnames. `rollout --apply` sends `--domain-name` and `--ssl-certificate` in one
+`sapccm endpoint update` call. This also works when the target certificate is already assigned and
+only the domain needs changing.
 
 **Domain check:** The Cloud Portal rejects a certificate that does not match the endpoint's domain
 (`The SSL certificate '...' does not match the domain name '...'`). `certtool` therefore compares the
@@ -514,11 +521,11 @@ certificate (subjectAltName, CN as fallback; `*.example.com` covers exactly one 
 `blocked - domain not covered` (status: `domain not covered`) and are not changed. The check is
 skipped if the domain or the local certificate file is not available.
 
-`certtool` never changes the domain of an endpoint: this changes where the shop is reachable and
-requires a matching DNS setup. The default endpoints of an environment
-(`*.model-t.cc.commerce.ondemand.com`) keep the SAP-managed Let's Encrypt certificate. For your own
-domains, create separate endpoints with the custom domain in the Cloud Portal (once) and assign your
-certificates to those endpoints in the configuration.
+Before changing a domain, certtool requires a valid hostname and checks it against the uploaded
+certificate's `DOMAINS` from `sapccm certificate show`. For a configured custom certificate, the
+local leaf PEM must also cover the hostname. Missing or unreadable coverage blocks the change.
+`unmanaged` endpoints are skipped. Prepare the DNS record for the new hostname before applying the
+rollout.
 
 **Cleanup** – Every certificate of the subscription is classified:
 
@@ -607,7 +614,8 @@ column headers.
 | `environment list --subscription-code` | Environments of the subscription (`fetch`) |
 | `endpoint list --subscription-code --environment-code` | Check that endpoints exist, domain of each endpoint (`URL`) |
 | `endpoint show --subscription-code --environment-code --code` | Current `SSL CERTIFICATE` of the endpoint |
-| `endpoint update --subscription-code --environment-code --code --ssl-certificate` | Rollout |
+| `certificate show --subscription-code --certificate-code` | Check the uploaded certificate's DNS names before a domain change |
+| `endpoint update --subscription-code --environment-code --code --ssl-certificate [--domain-name]` | Rollout |
 
 SAP documentation of the CLI: [Commerce Cloud Command Line Interface](https://help.sap.com/docs/SAP_COMMERCE_CLOUD_PUBLIC_CLOUD/9116f1cfd16049c3a531bfb6a681ff77/8acde53272c64efb908b9f0745498015.html).
 
