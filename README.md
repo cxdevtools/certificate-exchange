@@ -447,7 +447,7 @@ Every command starts with a **context header**, so it is always clear what the r
 values are never shown):
 
 ```
-SAP Commerce Cloud Certificate Exchange · certtool 0.2.0
+SAP Commerce Cloud Certificate Exchange · certtool 1.0.0
   Command        rollout
   Mode           preview (use --apply to switch the endpoints)
   Configuration  certtool.json

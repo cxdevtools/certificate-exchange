@@ -1,4 +1,4 @@
-# certtool 0.2.0 – Java release
+# certtool 1.0.0
 
 `certtool` automates SSL certificate exchange in **SAP Commerce Cloud (CCv2)**. It drives the official
 SAP Commerce Cloud Management CLI (`sapccm`), so there are no click paths in the Cloud Portal and no
@@ -12,9 +12,12 @@ macOS/Linux, `cxdev-certificates.bat` for Windows).
   only with `--apply`.
 - **Install once, use per project**: `certtool.json` is read from the current directory. Certificates
   are resolved relative to the configuration file (`certificatesPath`, default `./certificates`).
-- **Clear console output**: a context header (subscription, environment, credentials scope, secret
-  expiry, CLI and Java version), bordered plan/result tables, a `Details` block for errors and a
-  one-line summary.
+- **Console output**: all commands show a loading step and bordered tables. Rollout shows live
+  progress and retry status in supported terminals. Use `--verbose` for SAP calls and full update errors.
+- **Domain changes in rollout**: certtool can update the endpoint domain and certificate together
+  after checking certificate coverage.
+- **Retries for environment locks**: each SAP change can make up to 20 attempts, including the first
+  call. certtool waits 15 seconds between attempts when SAP reports the lock.
 
 ## Commands
 
@@ -23,7 +26,7 @@ macOS/Linux, `cxdev-certificates.bat` for Windows).
 | `status [environment]` | Compares local certificates, certificates in the subscription and the certificate **actually assigned** to every endpoint. Read-only; exit code 1 if problems are found. |
 | `fetch [environment] [--apply]` | Reads environments, endpoints and domains from the portal and adds **missing** endpoints to `certtool.json`. Existing entries are never changed. |
 | `upload [--certificate NAME] [--apply]` | Uploads configured certificates that are missing in the subscription (idempotent), after local checks. |
-| `rollout <environment> [--endpoint CODE] [--apply]` | Switches the endpoints of one environment to their target certificates. Endpoints already in place are left untouched. |
+| `rollout <environment> [--endpoint CODE] [--apply]` | Applies the configured certificates and domain changes for one environment. |
 | `cleanup [--include-unused] [--apply]` | Deletes certificates that are no longer needed. `--include-unused` also removes configured certificates that are not assigned to any endpoint. |
 
 Running the tool without arguments prints a structured overview with examples. Invalid parameters
@@ -36,7 +39,7 @@ print the help of the affected command.
     its name and code change with every renewal.
   - `"unmanaged"` is ignored by `rollout`.
 - Endpoints can be written in a short form (`"jsapps": "<certificate>"`) or a long form with the
-  expected domain:
+  desired domain:
   `"jsapps": { "domain": "www.example.com", "certificate": "<certificate>" }`.
 - `cleanup.protectedCertificates` holds names or codes (wildcards allowed) that are never deleted.
 
@@ -49,9 +52,9 @@ print the help of the affected command.
     (leaf first) are split automatically.
 - **Domain checks** before rollout:
   - The certificate must cover the endpoint domain (SAN/CN, wildcards for exactly one label).
-  - A configured domain must match the domain shown in the portal.
-  - Mismatching endpoints are blocked and never sent to the portal. `certtool` never changes
-    endpoint domains.
+  - For a domain change, the uploaded certificate must cover the new hostname. For custom
+    certificates, the local leaf certificate must also cover it. Missing or unverifiable coverage
+    blocks the change.
 - **Cleanup never deletes** SAP-managed certificates (built-in protection, independent of the
   configuration), protected certificates or certificates still assigned to endpoints.
 
