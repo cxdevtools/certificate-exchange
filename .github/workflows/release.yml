@@ -16,11 +16,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.14.3'
       - name: Build release ZIP
-        run: gradle test releaseZip -PreleaseVersion="${GITHUB_REF_NAME#v}"
+        run: ./gradlew test releaseZip -PreleaseVersion="${GITHUB_REF_NAME#v}"
       - name: Attach release ZIP
         env:
           GH_TOKEN: ${{ github.token }}
